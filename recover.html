@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="neon">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSSTRAEDER - Recuperar Senha</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg-page);
+        }
+        .auth-container {
+            width: 100%;
+            max-width: 440px;
+            padding: 2.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: var(--shadow-card);
+            backdrop-filter: blur(14px);
+            animation: fadeIn 0.5s ease-out;
+        }
+        .auth-logo {
+            font-family: var(--font-header);
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .auth-logo svg {
+            color: var(--accent);
+        }
+        .auth-subtitle {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+        .form-group {
+            margin-bottom: 1.25rem;
+            text-align: left;
+        }
+        .form-group label {
+            margin-bottom: 0.5rem;
+        }
+        .btn-auth {
+            width: 100%;
+            padding: 0.85rem;
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: var(--btn-primary-bg);
+            color: var(--btn-primary-text);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.25s;
+            margin-top: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.15);
+        }
+        .btn-auth:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+        .auth-footer {
+            margin-top: 2rem;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            border-top: 1px dashed var(--border);
+            padding-top: 1.5rem;
+        }
+        .auth-footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 700;
+            transition: color 0.2s;
+        }
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+        .alert-error {
+            background: rgba(220, 38, 38, 0.12);
+            border: 1px solid var(--color-down);
+            color: #fee2e2;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: none;
+            text-align: left;
+        }
+        .alert-success {
+            background: rgba(5, 150, 105, 0.12);
+            border: 1px solid var(--color-up);
+            color: #d1fae5;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: none;
+            text-align: left;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="auth-container">
+    <div class="auth-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        VSSTRAEDER
+    </div>
+    <div class="auth-subtitle">Recuperação de Senha</div>
+
+    <div id="error-alert" class="alert-error"></div>
+    <div id="success-alert" class="alert-success"></div>
+
+    <form id="recover-form" onsubmit="handleRecover(event)">
+        <div class="form-group">
+            <label for="method">Receber Código via:</label>
+            <select id="method" onchange="toggleInputs()" required>
+                <option value="email">E-mail</option>
+                <option value="whatsapp">WhatsApp (Evolution API)</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="group-email">
+            <label for="contact-email">E-mail Cadastrado</label>
+            <input type="email" id="contact-email" placeholder="seuemail@exemplo.com" required autocomplete="email">
+        </div>
+
+        <div class="form-group" id="group-whatsapp" style="display:none;">
+            <label for="contact-whatsapp">Número do WhatsApp (com DDD)</label>
+            <input type="tel" id="contact-whatsapp" placeholder="Ex: 11999998888" autocomplete="tel">
+        </div>
+        
+        <button type="submit" class="btn-auth">Enviar Código de Acesso</button>
+    </form>
+
+    <div class="auth-footer">
+        <p>Lembrou a senha? <a href="login.html">Fazer login</a></p>
+    </div>
+</div>
+
+<script>
+    function toggleInputs() {
+        const method = document.getElementById('method').value;
+        const groupEmail = document.getElementById('group-email');
+        const groupWhatsapp = document.getElementById('group-whatsapp');
+        const emailInput = document.getElementById('contact-email');
+        const whatsappInput = document.getElementById('contact-whatsapp');
+
+        if (method === 'email') {
+            groupEmail.style.display = 'block';
+            groupWhatsapp.style.display = 'none';
+            emailInput.required = true;
+            whatsappInput.required = false;
+        } else {
+            groupEmail.style.display = 'none';
+            groupWhatsapp.style.display = 'block';
+            emailInput.required = false;
+            whatsappInput.required = true;
+        }
+    }
+
+    async function handleRecover(e) {
+        e.preventDefault();
+        const method = document.getElementById('method').value;
+        const contact = method === 'email' 
+            ? document.getElementById('contact-email').value.trim() 
+            : document.getElementById('contact-whatsapp').value.trim();
+        
+        const errorAlert = document.getElementById('error-alert');
+        const successAlert = document.getElementById('success-alert');
+
+        errorAlert.style.display = 'none';
+        successAlert.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/recover-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contact, method })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorAlert.textContent = data.error || 'Erro ao solicitar código.';
+                errorAlert.style.display = 'block';
+                return;
+            }
+
+            successAlert.textContent = data.message || 'Código enviado com sucesso!';
+            successAlert.style.display = 'block';
+
+            // Redireciona para redefinir senha passando o método/contato como dica
+            setTimeout(() => {
+                window.location.href = 'reset-password.html';
+            }, 3000);
+
+        } catch (err) {
+            errorAlert.textContent = 'Sem conexão com o servidor.';
+            errorAlert.style.display = 'block';
+        }
+    }
+
+    // Bloqueios de Segurança Anti-Plágio
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+        if (e.keyCode === 123) { e.preventDefault(); return false; } // F12
+        if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) { e.preventDefault(); return false; } // Ctrl+Shift+I / J
+        if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; } // Ctrl+U
+    });
+</script>
+
+</body>
+</html>

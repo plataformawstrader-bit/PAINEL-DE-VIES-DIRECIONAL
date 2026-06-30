@@ -1,0 +1,10 @@
+┌─────────────────────────────────────────────────────────────────┐
+│                    VSSTRAEDER - SISTEMA COMPLETO                │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Dashboard Administrativo (gerenciar usuários)               │
+│  2. Planos: Mensal R$49,90 | Anual 12x R$29,90                  │
+│  3. Pagamento via QR Code PIX + Chave Aleatória                 │
+│  4. WhatsApp automático (recuperação + cobrança)                │
+│  5. Sistema de Afiliados (comissão 20%)                         │
+│  6. Email de confirmação e recuperação                          │
+└─────────────────────────────────────────────────────────────────┘

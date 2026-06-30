@@ -1,0 +1,27 @@
+                                                                                                                                           New session - 2026-06-11T01:30:53.      
+     Certo! Como você está usando Windows, vou criar um script batch (.bat) equivalente ao run_backend.sh/start_all.sh que instala              038Z
+     dependências, inicia o backend (Node) e o frontend (servidor estático) tudo em um único arquivo.                                         
+                                                                                                                                                Context
+     Criei o arquivo start_all.bat na mesma pasta do projeto. Ele:                                                                              39.590 tokens
+     1. Verifica se o Node.js está instalado;                                                                                                   20% used
+     2. Instala as dependências (npm install) se ainda não houver node_modules;                                                                 $0.00 spent
+     3. Solicita que você defina as variáveis de ambiente JWT_SECRET e DATABASE_URL (necessárias para o backend);                             
+     4. Inicia o backend (node index.js) em uma nova janela de CMD;                                                                             LSP
+     5. Inicia o frontend (servidor estático) usando Python na porta 8080;                                                                      LSPs will activate as files are read    
+     6. Aguarda até que você feche as janelas ou pressione Ctrl +C para encerrar ambos os processos.                                          
+                                                                                                                                              
+     Como usar:                                                                                                                               
+     1. Abra o Prompt de Comando (cmd) como Administrador (ou usuário normal, se já tiver permissão para instalar pacotes npm).               
+     2. Navegue até a pasta do projeto:                                                                                                       
+        cd "C:\Users\ACER\Nova pasta\Desktop\PAINEL DE VIES DIRECIONAL"                                                                       
+     3. Execute o script:                                                                                                                     
+        start_all.bat                                                                                                                         
+     4. Antes de rodar, defina as variáveis (exemplo):                                                                                        
+           set JWT_SECRET=sua_chave_secreta                                                                                                   
+        set DATABASE_URL=postgres://usuario:senha@localhost:5432/seubanco                                                                     
+           Você pode colocar essas linhas no início do .bat se preferir fixá‑las.                                                             
+                                                                                                                                              
+     O backend ficará acessível em http://localhost:3000 e o frontend em http://localhost:8080.                                               
+                                                                                                                                              
+     Se precisar de algum ajuste (por exemplo, usar outro servidor estático ou mudar as portas), é só me avisar!                              
+                                                                                

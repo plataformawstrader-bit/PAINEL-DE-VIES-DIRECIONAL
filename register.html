@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="neon">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSSTRAEDER - Criar Conta</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg-page);
+            padding: 2rem 1rem;
+        }
+        .auth-container {
+            width: 100%;
+            max-width: 480px;
+            padding: 2.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: var(--shadow-card);
+            backdrop-filter: blur(14px);
+            animation: fadeIn 0.5s ease-out;
+        }
+        .auth-logo {
+            font-family: var(--font-header);
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .auth-logo svg {
+            color: var(--accent);
+        }
+        .auth-subtitle {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+        .form-group {
+            margin-bottom: 1.1rem;
+            text-align: left;
+        }
+        .form-group label {
+            margin-bottom: 0.4rem;
+        }
+        .btn-auth {
+            width: 100%;
+            padding: 0.85rem;
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: var(--btn-primary-bg);
+            color: var(--btn-primary-text);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.25s;
+            margin-top: 1rem;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.15);
+        }
+        .btn-auth:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+        .auth-footer {
+            margin-top: 2rem;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            border-top: 1px dashed var(--border);
+            padding-top: 1.5rem;
+        }
+        .auth-footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 700;
+            transition: color 0.2s;
+        }
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+        .alert-error {
+            background: rgba(220, 38, 38, 0.12);
+            border: 1px solid var(--color-down);
+            color: #fee2e2;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: none;
+            text-align: left;
+        }
+        .alert-success {
+            background: rgba(5, 150, 105, 0.12);
+            border: 1px solid var(--color-up);
+            color: #d1fae5;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: none;
+            text-align: left;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="auth-container">
+    <div class="auth-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        VSSTRAEDER
+    </div>
+    <div class="auth-subtitle">Crie sua Conta de Acesso</div>
+
+    <div id="error-alert" class="alert-error"></div>
+    <div id="success-alert" class="alert-success"></div>
+
+    <form id="register-form" onsubmit="handleRegister(event)">
+        <div class="form-group">
+            <label for="name">Nome Completo</label>
+            <input type="text" id="name" placeholder="Digite seu nome" required autocomplete="name">
+        </div>
+        <div class="form-group">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" placeholder="seuemail@exemplo.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+            <label for="phone">WhatsApp (com DDD)</label>
+            <input type="tel" id="phone" placeholder="Ex: 11999998888" autocomplete="tel">
+        </div>
+        <div class="form-group">
+            <label for="password">Senha de Acesso</label>
+            <input type="password" id="password" placeholder="Mínimo 6 caracteres" required autocomplete="new-password" minlength="6">
+        </div>
+        <div class="form-group">
+            <label for="referralCode">Código de Indicação (Opcional)</label>
+            <input type="text" id="referralCode" placeholder="Ex: VS123A" autocomplete="off">
+        </div>
+        
+        <button type="submit" class="btn-auth">Cadastrar e Ativar Trial</button>
+    </form>
+
+    <div class="auth-footer">
+        <p>Já possui cadastro? <a href="login.html">Faça login</a></p>
+    </div>
+</div>
+
+<script>
+    // Gerador de Fingerprint do Dispositivo (Anti-Abuso de Trial)
+    function getDeviceFingerprint() {
+        try {
+            const parts = [
+                navigator.userAgent,
+                screen.width + 'x' + screen.height,
+                screen.colorDepth,
+                navigator.language,
+                new Date().getTimezoneOffset(),
+                navigator.hardwareConcurrency || 0
+            ];
+            const str = parts.join('|');
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = (hash << 5) - hash + char;
+                hash |= 0; // Converte para inteiro de 32 bits
+            }
+            return 'DEV_' + Math.abs(hash).toString(36).toUpperCase();
+        } catch (e) {
+            return 'DEV_UNKNOWN_' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+    }
+
+    // Prefila o código de indicação se houver na URL (?ref=CODIGO)
+    window.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const ref = urlParams.get('ref');
+        if (ref) {
+            document.getElementById('referralCode').value = ref.trim().toUpperCase();
+        }
+    });
+
+    async function handleRegister(e) {
+        e.preventDefault();
+        const name = document.getElementById('name').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const password = document.getElementById('password').value;
+        const referralCode = document.getElementById('referralCode').value.trim().toUpperCase();
+        
+        const errorAlert = document.getElementById('error-alert');
+        const successAlert = document.getElementById('success-alert');
+
+        errorAlert.style.display = 'none';
+        successAlert.style.display = 'none';
+
+        // Gera o fingerprint do dispositivo
+        const fingerprint = getDeviceFingerprint();
+
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    phone,
+                    password,
+                    referralCode: referralCode || null,
+                    deviceFingerprint: fingerprint
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorAlert.textContent = data.error || 'Erro ao realizar cadastro.';
+                errorAlert.style.display = 'block';
+                return;
+            }
+
+            successAlert.textContent = data.message || 'Cadastro realizado com sucesso!';
+            successAlert.style.display = 'block';
+
+            // Redireciona para o login após 3 segundos
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 3000);
+
+        } catch (err) {
+            errorAlert.textContent = 'Sem conexão com o servidor.';
+            errorAlert.style.display = 'block';
+        }
+    }
+
+    // Bloqueios de Segurança Anti-Plágio
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+        if (e.keyCode === 123) { e.preventDefault(); return false; } // F12
+        if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) { e.preventDefault(); return false; } // Ctrl+Shift+I / J
+        if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; } // Ctrl+U
+    });
+</script>
+
+</body>
+</html>

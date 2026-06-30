@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="neon">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSSTRAEDER - Assinar / Renovar Acesso</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg-page);
+            padding: 2rem 1rem;
+        }
+        .payment-container {
+            width: 100%;
+            max-width: 860px;
+        }
+        .payment-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        .payment-header .logo {
+            font-family: var(--font-header);
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            margin-bottom: 0.5rem;
+        }
+        .payment-header .logo svg { color: var(--accent); }
+        .payment-header h2 {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin: 0;
+        }
+        .expired-alert {
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid var(--color-down);
+            color: #fca5a5;
+            padding: 1rem 1.5rem;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 2.5rem;
+            text-align: center;
+            display: none;
+        }
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .plan-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .plan-card:hover, .plan-card.selected {
+            border-color: var(--accent);
+            box-shadow: 0 0 30px -6px rgba(0,255,136,0.25);
+            transform: translateY(-4px);
+        }
+        .plan-card.popular::before {
+            content: '✦ MAIS POPULAR';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(90deg, rgba(0,255,136,0.9), rgba(0,240,255,0.9));
+            color: #040507;
+            font-size: 0.65rem;
+            font-weight: 800;
+            letter-spacing: 0.15em;
+            padding: 0.35rem;
+            text-align: center;
+        }
+        .plan-name {
+            font-family: var(--font-header);
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .plan-price {
+            font-family: var(--font-header);
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: 0.3rem;
+        }
+        .plan-price span {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        .plan-period {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+        .plan-features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 2rem;
+            text-align: left;
+        }
+        .plan-features li {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            padding: 0.35rem 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.04);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .plan-features li::before {
+            content: '✓';
+            color: var(--accent);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .btn-plan {
+            width: 100%;
+            padding: 0.85rem;
+            font-family: var(--font-body);
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: var(--btn-primary-bg);
+            color: var(--btn-primary-text);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.25s;
+            box-shadow: 0 4px 15px rgba(0,255,136,0.15);
+        }
+        .btn-plan:hover { transform: translateY(-2px); filter: brightness(1.15); }
+        .payment-footer {
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-top: 1rem;
+        }
+        .payment-footer a { color: var(--accent); text-decoration: none; }
+        .security-badges {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        .badge {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .badge svg { color: var(--accent); }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="payment-container" style="animation: fadeIn 0.5s ease-out;">
+    <div class="payment-header">
+        <div class="logo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            VSSTRAEDER
+        </div>
+        <h2>Escolha o seu plano de acesso ao Painel de Viés Direcional</h2>
+    </div>
+
+    <div id="expired-alert" class="expired-alert">
+        ⚠️ Seu acesso expirou. Assine ou renove para continuar utilizando o painel.
+    </div>
+
+    <div class="plans-grid">
+        <!-- PLANO MENSAL -->
+        <div class="plan-card" id="card-mensal">
+            <div class="plan-name">Plano Mensal</div>
+            <div class="plan-price">R$ 49<span>,90/mês</span></div>
+            <div class="plan-period">Cobrado mensalmente • Cancele quando quiser</div>
+            <ul class="plan-features">
+                <li>Acesso completo ao painel em tempo real</li>
+                <li>Motor de Viés Índice &amp; Dólar</li>
+                <li>10 categorias de ativos monitoradas</li>
+                <li>Streaming de dados 100% ao vivo</li>
+                <li>Suporte via WhatsApp</li>
+            </ul>
+            <button class="btn-plan" onclick="checkout('monthly')">Assinar Agora</button>
+        </div>
+
+        <!-- PLANO ANUAL -->
+        <div class="plan-card popular" id="card-anual">
+            <div class="plan-name">Plano Anual</div>
+            <div class="plan-price">R$ 299<span>,00/ano</span></div>
+            <div class="plan-period">Equivale a R$ 24,92/mês • Economize 50%</div>
+            <ul class="plan-features">
+                <li>Tudo do plano mensal incluído</li>
+                <li>Acesso garantido por 12 meses</li>
+                <li>Prioridade em novas funcionalidades</li>
+                <li>Suporte prioritário via WhatsApp</li>
+                <li>Sem preocupação com renovação mensal</li>
+            </ul>
+            <button class="btn-plan" onclick="checkout('yearly')">Assinar Anual</button>
+        </div>
+    </div>
+
+    <div class="security-badges">
+        <div class="badge">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Pagamento 100% Seguro
+        </div>
+        <div class="badge">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Acesso Liberado em Minutos
+        </div>
+        <div class="badge">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Suporte Via WhatsApp
+        </div>
+    </div>
+
+    <div class="payment-footer">
+        <p style="margin-top:1.5rem;">Já realizou o pagamento? 
+            <a href="#" onclick="checkPaymentStatus()">Clique aqui para verificar</a>
+        </p>
+        <p><a href="login.html">← Voltar ao Login</a></p>
+    </div>
+</div>
+
+<script>
+    // Verifica se o usuário está autenticado
+    const token = localStorage.getItem('vsstraeder_token');
+    const user  = JSON.parse(localStorage.getItem('vsstraeder_user') || '{}');
+
+    // Mostra alerta de acesso expirado se vier do redirect de expiração
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('expired') === '1' || urlParams.get('reason') === 'expired') {
+        document.getElementById('expired-alert').style.display = 'block';
+    }
+
+    // URLs de checkout configuradas (serão links reais do Kiwify/Cakto)
+    // Substitua pelas URLs reais da sua plataforma de pagamento
+    const CHECKOUT_URLS = {
+        monthly: 'https://pay.kiwify.com.br/SEU_LINK_MENSAL',
+        yearly:  'https://pay.kiwify.com.br/SEU_LINK_ANUAL'
+    };
+
+    function checkout(plan) {
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        // Adiciona o email do usuário como parâmetro para o checkout (pre-fill)
+        const baseUrl = CHECKOUT_URLS[plan];
+        const checkoutUrl = user.email ? `${baseUrl}?email=${encodeURIComponent(user.email)}` : baseUrl;
+        window.open(checkoutUrl, '_blank');
+        
+        // Inicia o polling para verificar a liberação automática após pagamento
+        startPaymentPolling();
+    }
+
+    // Polling: verifica a cada 30 segundos se o pagamento foi confirmado
+    let pollingInterval = null;
+    function startPaymentPolling() {
+        if (pollingInterval) return; // Já está rodando
+        
+        pollingInterval = setInterval(async () => {
+            try {
+                const resp = await fetch('/api/check-access', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await resp.json();
+                
+                if (data.allowed) {
+                    clearInterval(pollingInterval);
+                    alert('✅ Pagamento confirmado! Seu acesso foi liberado. Redirecionando...');
+                    window.location.href = 'index.html';
+                }
+            } catch (e) {
+                // Ignorar erros de rede e continuar tentando
+            }
+        }, 30000); // a cada 30 segundos
+    }
+
+    // Verificação manual do status de pagamento
+    async function checkPaymentStatus() {
+        if (!token) { window.location.href = 'login.html'; return; }
+
+        try {
+            const resp = await fetch('/api/check-access', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await resp.json();
+
+            if (data.allowed) {
+                window.location.href = 'index.html';
+            } else {
+                alert('⏳ Pagamento ainda não confirmado. Aguarde alguns instantes após o pagamento.');
+            }
+        } catch (e) {
+            alert('Sem conexão com o servidor. Tente novamente.');
+        }
+    }
+
+    // Bloqueios Anti-Plágio
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+        if (e.keyCode === 123) { e.preventDefault(); return false; }
+        if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) { e.preventDefault(); return false; }
+        if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="neon">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSSTRAEDER - Painel Administrativo</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { background: var(--bg-page); font-family: var(--font-body); }
+        .admin-wrap { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+        /* ── Header ─────────────────────────── */
+        .admin-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .admin-brand {
+            font-family: var(--font-header);
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .admin-brand svg { color: var(--accent); }
+        .admin-badge {
+            font-size: 0.62rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            background: rgba(0,255,136,0.1);
+            color: var(--accent);
+            border: 1px solid rgba(0,255,136,0.3);
+            border-radius: 6px;
+            padding: 0.25rem 0.6rem;
+        }
+        .btn-logout {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--color-down);
+            background: rgba(220,38,38,0.08);
+            color: var(--color-down);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-body);
+        }
+        .btn-logout:hover { background: rgba(220,38,38,0.18); }
+
+        /* ── Nav Tabs ─────────────────────── */
+        .admin-nav {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        .nav-tab {
+            padding: 0.6rem 1.2rem;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-body);
+        }
+        .nav-tab.active {
+            background: rgba(0,255,136,0.1);
+            border-color: rgba(0,255,136,0.4);
+            color: var(--accent);
+        }
+        .nav-tab:hover { border-color: var(--border-hover); color: var(--text-primary); }
+        .tab-section { display: none; }
+        .tab-section.active { display: block; }
+
+        /* ── KPI Cards ───────────────────── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.4rem 1.5rem;
+            transition: border-color 0.2s;
+        }
+        .kpi-card:hover { border-color: var(--border-hover); }
+        .kpi-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            margin-bottom: 0.6rem;
+        }
+        .kpi-value {
+            font-family: var(--font-header);
+            font-size: 1.9rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+        .kpi-value.green { color: var(--color-up); }
+        .kpi-value.blue  { color: #00f0ff; }
+        .kpi-value.warn  { color: #f59e0b; }
+        .kpi-sub {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            margin-top: 0.4rem;
+        }
+
+        /* ── Seção de Gráficos ──────────── */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.4rem;
+        }
+        .chart-card h3 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            margin-bottom: 1.2rem;
+        }
+        .chart-card canvas { max-height: 220px; }
+
+        /* ── Tabela de Usuários ──────────── */
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 0.8rem;
+        }
+        .section-header h3 {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+        .search-input {
+            padding: 0.45rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.03);
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            font-family: var(--font-body);
+            width: 220px;
+            transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: var(--border-hover); outline: none; }
+        .users-table { width: 100%; border-collapse: collapse; }
+        .users-table th {
+            padding: 0.8rem 1.2rem;
+            text-align: left;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .users-table td {
+            padding: 0.9rem 1.2rem;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            vertical-align: middle;
+        }
+        .users-table tr:hover td { background: var(--row-hover); }
+        .badge-active {
+            background: rgba(0,255,136,0.1);
+            color: var(--color-up);
+            border: 1px solid rgba(0,255,136,0.3);
+            border-radius: 6px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .badge-expired {
+            background: rgba(220,38,38,0.1);
+            color: var(--color-down);
+            border: 1px solid rgba(220,38,38,0.3);
+            border-radius: 6px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .badge-trial {
+            background: rgba(245,158,11,0.1);
+            color: #f59e0b;
+            border: 1px solid rgba(245,158,11,0.3);
+            border-radius: 6px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .badge-blocked {
+            background: rgba(100,116,139,0.15);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .action-btn {
+            padding: 0.35rem 0.8rem;
+            border-radius: 7px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-body);
+            border: none;
+            margin-right: 0.3rem;
+        }
+        .btn-block   { background: rgba(220,38,38,0.15); color: var(--color-down); border: 1px solid rgba(220,38,38,0.3); }
+        .btn-unblock { background: rgba(0,255,136,0.1); color: var(--color-up); border: 1px solid rgba(0,255,136,0.3); }
+        .btn-extend  { background: rgba(0,240,255,0.1); color: #00f0ff; border: 1px solid rgba(0,240,255,0.3); }
+        .action-btn:hover { filter: brightness(1.3); transform: scale(1.04); }
+
+        /* ── Tabela de Transações ─────────── */
+        .amount-positive { color: var(--color-up); font-weight: 700; }
+        .amount-neutral  { color: var(--text-secondary); }
+
+        /* ── Loading ─────────────────────── */
+        .loading-row td {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 2rem;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+<div class="admin-wrap">
+
+    <!-- Header -->
+    <div class="admin-header">
+        <div style="display:flex; align-items:center; gap:0.8rem;">
+            <div class="admin-brand">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                VSSTRAEDER
+            </div>
+            <span class="admin-badge">Painel Admin</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <span id="admin-name" style="font-size:0.8rem; color:var(--text-secondary);"></span>
+            <button class="btn-logout" onclick="logout()">Sair</button>
+        </div>
+    </div>
+
+    <!-- Nav Tabs -->
+    <div class="admin-nav">
+        <button class="nav-tab active" id="tab-btn-dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
+        <button class="nav-tab" id="tab-btn-users" onclick="switchTab('users')">👥 Usuários</button>
+        <button class="nav-tab" id="tab-btn-transactions" onclick="switchTab('transactions')">💳 Transações</button>
+        <button class="nav-tab" id="tab-btn-projections" onclick="switchTab('projections')">📈 Projeções</button>
+    </div>
+
+    <!-- ────────────────────────────────────────── -->
+    <!-- TAB: Dashboard                             -->
+    <!-- ────────────────────────────────────────── -->
+    <section class="tab-section active" id="tab-dashboard">
+        <!-- KPIs -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">MRR (Receita Mensal)</div>
+                <div class="kpi-value green" id="kpi-mrr">–</div>
+                <div class="kpi-sub">Mensal Recorrente (SaaS)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">ARR (Receita Anual)</div>
+                <div class="kpi-value blue" id="kpi-arr">–</div>
+                <div class="kpi-sub">Projeção anual baseada no MRR</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Faturamento Este Mês</div>
+                <div class="kpi-value green" id="kpi-month">–</div>
+                <div class="kpi-sub" id="kpi-month-sub">Receita confirmada no mês atual</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Próximos 30 Dias</div>
+                <div class="kpi-value" id="kpi-next30">–</div>
+                <div class="kpi-sub">Renovações previstas</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Assinantes Ativos</div>
+                <div class="kpi-value" id="kpi-active">–</div>
+                <div class="kpi-sub">Total com acesso liberado</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Inadimplentes</div>
+                <div class="kpi-value warn" id="kpi-expired">–</div>
+                <div class="kpi-sub">Com assinatura expirada</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Total Histórico</div>
+                <div class="kpi-value blue" id="kpi-total">–</div>
+                <div class="kpi-sub">Toda a receita acumulada</div>
+            </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>Faturamento Mensal (Últimos 6 Meses)</h3>
+                <canvas id="chart-revenue"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Distribuição de Assinantes</h3>
+                <canvas id="chart-plans"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <!-- ────────────────────────────────────────── -->
+    <!-- TAB: Usuários                              -->
+    <!-- ────────────────────────────────────────── -->
+    <section class="tab-section" id="tab-users">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Gerenciar Usuários</h3>
+                <input type="text" class="search-input" id="user-search"
+                       placeholder="🔍 Buscar por nome ou email..."
+                       oninput="filterUsers()">
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="users-table" id="users-table">
+                    <thead>
+                        <tr>
+                            <th>Usuário</th>
+                            <th>Plano</th>
+                            <th>Status</th>
+                            <th>Vencimento</th>
+                            <th>Cadastro</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody">
+                        <tr class="loading-row"><td colspan="6">Carregando usuários...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ────────────────────────────────────────── -->
+    <!-- TAB: Transações                            -->
+    <!-- ────────────────────────────────────────── -->
+    <section class="tab-section" id="tab-transactions">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Histórico de Transações</h3>
+                <span id="tx-count" style="font-size:0.75rem; color:var(--text-secondary);"></span>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="users-table" id="tx-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Usuário</th>
+                            <th>Plano</th>
+                            <th>Valor</th>
+                            <th>Método</th>
+                            <th>Fonte</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tx-tbody">
+                        <tr class="loading-row"><td colspan="6">Carregando transações...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ────────────────────────────────────────── -->
+    <!-- TAB: Projeções                             -->
+    <!-- ────────────────────────────────────────── -->
+    <section class="tab-section" id="tab-projections">
+        <div class="kpi-grid" style="margin-bottom:2rem;">
+            <div class="kpi-card">
+                <div class="kpi-label">Projeção 3 Meses</div>
+                <div class="kpi-value green" id="proj-3m">–</div>
+                <div class="kpi-sub">Se mantiver base atual</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Projeção 6 Meses</div>
+                <div class="kpi-value blue" id="proj-6m">–</div>
+                <div class="kpi-sub">Se mantiver base atual</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Projeção 12 Meses</div>
+                <div class="kpi-value" id="proj-12m">–</div>
+                <div class="kpi-sub">ARR projetado</div>
+            </div>
+        </div>
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Renovações Previstas (Próximos 30 Dias)</h3>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Data Vencimento</th>
+                            <th>Usuário</th>
+                            <th>Plano</th>
+                            <th>Valor Previsto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="renewals-tbody">
+                        <tr class="loading-row"><td colspan="4">Carregando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+</div><!-- /admin-wrap -->
+
+<script>
+    // ─── Autenticação Admin ──────────────────────────────────────────────
+    const token = localStorage.getItem('vsstraeder_token');
+    const user  = JSON.parse(localStorage.getItem('vsstraeder_user') || '{}');
+
+    if (!token) { window.location.href = 'login.html'; }
+    if (user.role !== 'admin') { window.location.href = 'index.html'; }
+
+    if (user.name) {
+        document.getElementById('admin-name').textContent = '👤 ' + user.name;
+    }
+
+    const HEADERS = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = 'login.html';
+    }
+
+    // ─── Tabs ────────────────────────────────────────────────────────────
+    function switchTab(name) {
+        document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        document.getElementById('tab-btn-' + name).classList.add('active');
+    }
+
+    // ─── Formatação ──────────────────────────────────────────────────────
+    function brl(v) {
+        return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtDate(d) {
+        if (!d) return '–';
+        return new Date(d).toLocaleDateString('pt-BR');
+    }
+    function daysLeft(d) {
+        if (!d) return null;
+        const diff = Math.ceil((new Date(d) - new Date()) / 86400000);
+        return diff;
+    }
+
+    // ─── Status Badge ────────────────────────────────────────────────────
+    function statusBadge(u) {
+        if (u.is_blocked) return '<span class="badge-blocked">Bloqueado</span>';
+        const days = daysLeft(u.subscription_end);
+        if (days === null) return '<span class="badge-expired">Sem Plano</span>';
+        if (u.is_trial) return `<span class="badge-trial">Trial (${days}d)</span>`;
+        if (days > 0) return `<span class="badge-active">Ativo (${days}d)</span>`;
+        return '<span class="badge-expired">Expirado</span>';
+    }
+
+    // ─── Carregar Dashboard ──────────────────────────────────────────────
+    let financialData = null;
+    let revenueChart = null;
+    let plansChart = null;
+
+    async function loadDashboard() {
+        try {
+            const resp = await fetch('/api/admin/financial-stats', { headers: HEADERS });
+            if (!resp.ok) {
+                if (resp.status === 403) { window.location.href = 'index.html'; return; }
+                throw new Error('Erro ao carregar dados');
+            }
+            financialData = await resp.json();
+
+            document.getElementById('kpi-mrr').textContent   = brl(financialData.mrr);
+            document.getElementById('kpi-arr').textContent   = brl(financialData.arr);
+            document.getElementById('kpi-month').textContent = brl(financialData.monthRevenue);
+            document.getElementById('kpi-next30').textContent= brl(financialData.next30daysRevenue);
+            document.getElementById('kpi-active').textContent= financialData.activeUsers || 0;
+            document.getElementById('kpi-expired').textContent= financialData.expiredUsers || 0;
+            document.getElementById('kpi-total').textContent = brl(financialData.totalRevenue);
+
+            // Projeções
+            const mrr = parseFloat(financialData.mrr || 0);
+            document.getElementById('proj-3m').textContent  = brl(mrr * 3);
+            document.getElementById('proj-6m').textContent  = brl(mrr * 6);
+            document.getElementById('proj-12m').textContent = brl(mrr * 12);
+
+            // Gráfico de Receita Mensal
+            const months = financialData.monthlyHistory || [];
+            const labels = months.map(m => m.label || m.month);
+            const values = months.map(m => parseFloat(m.revenue || 0));
+
+            if (revenueChart) revenueChart.destroy();
+            const ctxRev = document.getElementById('chart-revenue').getContext('2d');
+            revenueChart = new Chart(ctxRev, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Receita (R$)',
+                        data: values,
+                        backgroundColor: 'rgba(0,255,136,0.18)',
+                        borderColor: '#00ff88',
+                        borderWidth: 2,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
+                        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', callback: v => 'R$' + v } }
+                    }
+                }
+            });
+
+            // Gráfico de Planos (Pizza)
+            const monthly = financialData.monthlySubscribers || 0;
+            const yearly  = financialData.yearlySubscribers  || 0;
+            const trial   = financialData.trialUsers         || 0;
+
+            if (plansChart) plansChart.destroy();
+            const ctxPlans = document.getElementById('chart-plans').getContext('2d');
+            plansChart = new Chart(ctxPlans, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Mensal', 'Anual', 'Trial'],
+                    datasets: [{
+                        data: [monthly, yearly, trial],
+                        backgroundColor: ['rgba(0,255,136,0.7)', 'rgba(0,240,255,0.7)', 'rgba(245,158,11,0.7)'],
+                        borderColor: ['#00ff88', '#00f0ff', '#f59e0b'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#64748b', padding: 12 } }
+                    }
+                }
+            });
+
+        } catch (err) {
+            console.error('Erro no dashboard:', err);
+        }
+    }
+
+    // ─── Carregar Usuários ───────────────────────────────────────────────
+    let allUsers = [];
+
+    async function loadUsers() {
+        try {
+            const resp = await fetch('/api/admin/users', { headers: HEADERS });
+            allUsers = await resp.json();
+            renderUsers(allUsers);
+        } catch (e) {
+            document.getElementById('users-tbody').innerHTML =
+                '<tr class="loading-row"><td colspan="6">Erro ao carregar usuários.</td></tr>';
+        }
+    }
+
+    function renderUsers(list) {
+        const tbody = document.getElementById('users-tbody');
+        if (!list || list.length === 0) {
+            tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Nenhum usuário encontrado.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = list.map(u => `
+            <tr>
+                <td>
+                    <div style="font-weight:600;">${escapeHtml(u.name || '–')}</div>
+                    <div style="font-size:0.72rem; color:var(--text-secondary);">${escapeHtml(u.email)}</div>
+                </td>
+                <td>${u.plan_type === 'yearly' ? '📅 Anual' : (u.is_trial ? '🎁 Trial' : '📆 Mensal')}</td>
+                <td>${statusBadge(u)}</td>
+                <td>${fmtDate(u.subscription_end)}</td>
+                <td>${fmtDate(u.created_at)}</td>
+                <td>
+                    ${u.is_blocked
+                        ? `<button class="action-btn btn-unblock" onclick="toggleBlock('${u.id}', false)">✅ Desbloquear</button>`
+                        : `<button class="action-btn btn-block"   onclick="toggleBlock('${u.id}', true)">🚫 Bloquear</button>`
+                    }
+                    <button class="action-btn btn-extend" onclick="extendAccess('${u.id}')">+30d</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function filterUsers() {
+        const q = document.getElementById('user-search').value.toLowerCase();
+        const filtered = allUsers.filter(u =>
+            (u.name || '').toLowerCase().includes(q) ||
+            (u.email || '').toLowerCase().includes(q)
+        );
+        renderUsers(filtered);
+    }
+
+    async function toggleBlock(userId, block) {
+        const action = block ? 'bloquear' : 'desbloquear';
+        if (!confirm(`Deseja ${action} este usuário?`)) return;
+        try {
+            await fetch(`/api/admin/users/${userId}/block`, {
+                method: 'PATCH',
+                headers: HEADERS,
+                body: JSON.stringify({ block })
+            });
+            await loadUsers();
+        } catch (e) { alert('Erro ao executar ação.'); }
+    }
+
+    async function extendAccess(userId) {
+        if (!confirm('Adicionar 30 dias de acesso a este usuário?')) return;
+        try {
+            await fetch(`/api/admin/users/${userId}/extend`, {
+                method: 'PATCH',
+                headers: HEADERS,
+                body: JSON.stringify({ days: 30 })
+            });
+            await loadUsers();
+        } catch (e) { alert('Erro ao estender acesso.'); }
+    }
+
+    // ─── Carregar Transações ─────────────────────────────────────────────
+    async function loadTransactions() {
+        try {
+            const resp = await fetch('/api/admin/transactions', { headers: HEADERS });
+            const list = await resp.json();
+            document.getElementById('tx-count').textContent = list.length + ' registros';
+
+            const tbody = document.getElementById('tx-tbody');
+            if (!list || list.length === 0) {
+                tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Sem transações registradas.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = list.map(t => `
+                <tr>
+                    <td>${fmtDate(t.created_at)}</td>
+                    <td>
+                        <div style="font-weight:600;">${escapeHtml(t.user_name || '–')}</div>
+                        <div style="font-size:0.72rem; color:var(--text-secondary);">${escapeHtml(t.user_email || '')}</div>
+                    </td>
+                    <td>${t.plan_type === 'yearly' ? '📅 Anual' : '📆 Mensal'}</td>
+                    <td class="amount-positive">${brl(t.amount)}</td>
+                    <td>${t.payment_method || '–'}</td>
+                    <td style="font-size:0.72rem; color:var(--text-secondary);">${t.source || 'webhook'}</td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            document.getElementById('tx-tbody').innerHTML =
+                '<tr class="loading-row"><td colspan="6">Erro ao carregar transações.</td></tr>';
+        }
+    }
+
+    // ─── Carregar Renovações Previstas ───────────────────────────────────
+    async function loadRenewals() {
+        if (!financialData) return;
+        const renewals = financialData.upcomingRenewals || [];
+        const tbody = document.getElementById('renewals-tbody');
+        if (!renewals.length) {
+            tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Sem renovações previstas nos próximos 30 dias.</td></tr>';
+            return;
+        }
+        const priceMap = { monthly: 49.90, yearly: 299.00 };
+        tbody.innerHTML = renewals.map(r => `
+            <tr>
+                <td>${fmtDate(r.subscription_end)}</td>
+                <td>
+                    <div style="font-weight:600;">${escapeHtml(r.name || '–')}</div>
+                    <div style="font-size:0.72rem; color:var(--text-secondary);">${escapeHtml(r.email || '')}</div>
+                </td>
+                <td>${r.plan_type === 'yearly' ? '📅 Anual' : '📆 Mensal'}</td>
+                <td class="amount-positive">${brl(priceMap[r.plan_type] || 49.90)}</td>
+            </tr>
+        `).join('');
+    }
+
+    // ─── Utilitários ─────────────────────────────────────────────────────
+    function escapeHtml(str) {
+        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ─── Inicialização ───────────────────────────────────────────────────
+    (async () => {
+        await loadDashboard();
+        await loadUsers();
+        await loadTransactions();
+        await loadRenewals();
+    })();
+
+    // Bloqueios Anti-Plágio
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    document.addEventListener('keydown', e => {
+        if (e.keyCode === 123) { e.preventDefault(); return false; }
+        if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) { e.preventDefault(); return false; }
+        if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; }
+    });
+</script>
+</body>
+</html>

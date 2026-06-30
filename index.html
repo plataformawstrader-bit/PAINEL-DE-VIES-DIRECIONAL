@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="blue">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WS PAINEL DE MONITORAMENTO</title>
+    <meta name="description" content="WS PAINEL DE MONITORAMENTO V2 — 10 categorias de ativos em tempo real com motor de viés para Índice e Dólar.">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+
+    <!-- ══════════ PROTEÇÃO DE ACESSO JWT ══════════ -->
+    <script>
+        (function() {
+            var token = localStorage.getItem('vsstraeder_token');
+            if (!token) { window.location.replace('login.html'); return; }
+
+            // Decodifica payload JWT sem verificação de assinatura (verificação real é no backend)
+            try {
+                var payload = JSON.parse(atob(token.split('.')[1]));
+                var now = Math.floor(Date.now() / 1000);
+                // Token expirado localmente
+                if (payload.exp && payload.exp < now) {
+                    localStorage.removeItem('vsstraeder_token');
+                    window.location.replace('login.html');
+                    return;
+                }
+            } catch(e) {
+                localStorage.removeItem('vsstraeder_token');
+                window.location.replace('login.html');
+                return;
+            }
+
+            // Verifica acesso no servidor ao carregar
+            fetch('/api/check-access', { headers: { 'Authorization': 'Bearer ' + token } })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.allowed) {
+                        var reason = data.reason || 'expired';
+                        if (reason === 'simultaneous_login') {
+                            alert('Sua sessão foi encerrada porque outro acesso foi iniciado.');
+                            localStorage.clear();
+                            window.location.replace('login.html');
+                        } else {
+                            window.location.replace('payment.html?expired=1');
+                        }
+                    }
+                })
+                .catch(function() {
+                    // Se offline, permita continuar (verificará novamente em 5 minutos)
+                });
+        })();
+
+        // Bloqueios Anti-Plágio
+        document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+        document.addEventListener('keydown', function(e) {
+            if (e.keyCode === 123) { e.preventDefault(); return false; }
+            if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) { e.preventDefault(); return false; }
+            if (e.ctrlKey && e.keyCode === 85) { e.preventDefault(); return false; }
+        });
+    </script>
+</head>
+<body>
+<div class="wrap">
+
+    <!-- ══════════ CABEÇALHO ══════════ -->
+    <header class="site-header">
+        <div class="brand">
+            <h1>
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                WS PAINEL DE MONITORAMENTO
+            </h1>
+            <p>10 categorias &nbsp;·&nbsp; dados 100% em tempo real &nbsp;·&nbsp; motor de viés integrado</p>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap;">
+            <!-- Status de Conexão -->
+            <div class="conn-status">
+                <span id="conn-dot" class="conn-dot dot-offline"></span>
+                <span id="conn-text">Conectando...</span>
+            </div>
+
+            <!-- Alternador de Tema -->
+            <div class="theme-switch">
+                <button id="btn-blue" class="btn-theme active" onclick="setTheme('blue')">
+                    ☀️ Branco & Azul
+                </button>
+                <button id="btn-neon" class="btn-theme" onclick="setTheme('neon')">
+                    🌑 Preto & Neon
+                </button>
+            </div>
+
+            <!-- Link Admin (visível apenas para admins) -->
+            <a id="admin-link" href="admin.html" style="display:none; font-size:0.75rem; font-weight:700; color:var(--accent); text-decoration:none; border:1px solid var(--border-hover); border-radius:8px; padding:0.4rem 0.8rem;">⚙ Admin</a>
+
+            <!-- Botão Sair -->
+            <button onclick="logoutUser()" title="Sair" style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.3); color:#dc2626; border-radius:8px; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer; font-family:var(--font-body);">
+                Sair
+            </button>
+        </div>
+    </header>
+
+    <!-- ══════════ WS BIAS ENGINE — VIÉS DO DIA ══════════ -->
+    <div class="bias-engine-row">
+
+        <!-- Bloco do Índice -->
+        <div id="bias-index" class="bias-block bias-neutral">
+            <div class="bias-label">ÍNDICE (INDFUT)</div>
+            <div class="bias-direction">
+                <span class="bias-arrow">◆</span>
+                <span class="bias-text">AGUARDANDO DADOS...</span>
+            </div>
+            <div class="bias-gap">GAP ESTIMADO: <strong>–</strong></div>
+            <div class="bias-score">Score: –</div>
+            <div class="bias-factors">Conectando ao streaming...</div>
+        </div>
+
+        <!-- Bloco do Dólar -->
+        <div id="bias-dollar" class="bias-block bias-neutral">
+            <div class="bias-label">DÓLAR (USD/BRL)</div>
+            <div class="bias-direction">
+                <span class="bias-arrow">◆</span>
+                <span class="bias-text">AGUARDANDO DADOS...</span>
+            </div>
+            <div class="bias-gap">GAP ESTIMADO: <strong>–</strong></div>
+            <div class="bias-score">Score: –</div>
+            <div class="bias-factors">Conectando ao streaming...</div>
+        </div>
+
+    </div>
+
+    <!-- ══════════ ALERTA CORRELAÇÃO ATÍPICA ══════════ -->
+    <div id="correlation-alert" class="correlation-alert" style="display:none;">
+        ⚠️ <strong>ATENÇÃO — CORRELAÇÃO ATÍPICA:</strong> Índice e Dólar com viés na <strong>mesma direção</strong>.
+        Isso ocorre em cenários específicos (commodities em alta + Fed hawkish). Verifique o score mais forte e observe o USD/BRL tick a tick.
+    </div>
+
+    <!-- ══════════ BOTÃO ADICIONAR ATIVO ══════════ -->
+    <div class="action-bar">
+        <button class="btn-toggle-form" onclick="toggleForm()">
+            ➕ &nbsp;Adicionar Ativo ao Portfólio
+        </button>
+    </div>
+
+    <!-- ══════════ FORMULÁRIO GAVETA ══════════ -->
+    <div id="form-card" class="form-card">
+        <h3>CADASTRAR NOVO ATIVO</h3>
+        <form id="asset-form" onsubmit="submitAsset(event)">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="f-name">Nome / Sigla do Ativo</label>
+                    <input type="text" id="f-name" placeholder="Ex: PETR4" autocomplete="off" required>
+                </div>
+                <div class="form-group">
+                    <label for="f-pid">Pair ID da Investing (PID)</label>
+                    <input type="text" id="f-pid" placeholder="Ex: 18604" autocomplete="off" required>
+                </div>
+                <div class="form-group">
+                    <label for="f-cat">Categoria</label>
+                    <select id="f-cat" required>
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="eua">Mercado Americano (EUA)</option>
+                        <option value="curva_eua">Curva de Juros Americana</option>
+                        <option value="commodities">Commodities</option>
+                        <option value="dx">DX (Índice Dólar e G7)</option>
+                        <option value="brasil">Brasil</option>
+                        <option value="emergentes">Moedas Emergentes</option>
+                        <option value="latam">América Latina (LATAM)</option>
+                        <option value="europa">Bolsas Europeias</option>
+                        <option value="dolar">Dólar no Mundo</option>
+                        <option value="cryptos">Criptomoedas</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-add-asset">✔ Inserir</button>
+            </div>
+        </form>
+        <div class="form-hint">
+            <strong>Como encontrar o Pair ID?</strong> Acesse o ativo em
+            <a href="https://br.investing.com" target="_blank">br.investing.com</a> →
+            clique com botão direito na página → "Exibir código-fonte" (<code>Ctrl+U</code>) →
+            pesquise por <code>pairId</code>. O número ao lado é o PID. Cole-o acima!
+        </div>
+    </div>
+
+    <!-- ══════════ 10 TABELAS DE ATIVOS ══════════ -->
+    <div class="tables-grid">
+
+        <!-- 1. EUA -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>📈 Mercado Americano (EUA)</span>
+                        <span class="avg-badge avg-up" id="avg-eua">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="eua-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 2. Curva de Juros EUA -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>📉 Curva de Juros EUA</span>
+                        <span class="avg-badge avg-up" id="avg-curva">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="curva-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 3. Commodities -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>⚡ Commodities</span>
+                        <span class="avg-badge avg-up" id="avg-commodities">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="commodities-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 4. DX / Índice Dólar e Moedas G7 -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>💱 DX & Moedas G7</span>
+                        <span class="avg-badge avg-up" id="avg-dx">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="dx-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 5. Brasil -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>BR Brasil</span>
+                        <span class="avg-badge avg-up" id="avg-brasil">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="brasil-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 6. Moedas Emergentes -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>🌏 Moedas Emergentes</span>
+                        <span class="avg-badge avg-up" id="avg-emergentes">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="emergentes-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 7. LATAM -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>🌎 América Latina (LATAM)</span>
+                        <span class="avg-badge avg-up" id="avg-latam">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="latam-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 8. Bolsas Europeias -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>🇪🇺 Bolsas Europeias</span>
+                        <span class="avg-badge avg-up" id="avg-europa">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="europa-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 9. Dólar no Mundo -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>🌐 Dólar no Mundo</span>
+                        <span class="avg-badge avg-up" id="avg-dolar">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="dolar-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 10. Criptomoedas -->
+        <div class="table-card">
+            <table>
+                <caption>
+                    <div class="caption-row">
+                        <span>₿ Criptomoedas</span>
+                        <span class="avg-badge avg-up" id="avg-cryptos">0.00%</span>
+                    </div>
+                </caption>
+                <thead><tr>
+                    <th>Ativo</th><th>Percentil</th><th>Var %</th><th>Último</th>
+                </tr></thead>
+                <tbody id="cryptos-table"></tbody>
+            </table>
+        </div>
+
+    </div> <!-- /.tables-grid -->
+
+    <!-- ══════════ RODAPÉ ══════════ -->
+    <footer>
+        <span>
+            Dados em tempo real via WebSocket &nbsp;·&nbsp;
+            <a href="https://br.investing.com" target="_blank" rel="noopener">Investing Brasil</a>
+            &nbsp;·&nbsp; WS PAINEL DE MONITORAMENTO V2
+        </span>
+        <ul class="footer-links">
+            <li><a href="#" onclick="openModal(event, 'modal')">Sobre & Como usar</a></li>
+            <li><a href="#" onclick="openModal(event, 'modal-macro')">📚 Guia Macro & Micro</a></li>
+            <li><a href="#" onclick="openModal(event, 'modal-pids')">🔑 Tabela de PIDs</a></li>
+        </ul>
+    </footer>
+
+</div><!-- /.wrap -->
+
+<!-- ══════════ MODAL ══════════ -->
+<div id="modal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-head">
+            <span>Sobre & Como Usar</span>
+            <button onclick="closeModal(event)">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+
+            <h4>O que é o WS Bias Engine?</h4>
+            <p>O <strong>WS Bias Engine</strong> é um motor quantitativo embutido no painel que calcula, em tempo real, o <strong>viés direcional do Índice (INDFUT)</strong> e do <strong>Dólar (USD/BRL)</strong> para o dia.</p>
+            <p>Ele não usa dados simulados ou placeholders. Cada segundo que passa com o WebSocket aberto, ele recebe novas cotações dos mercados globais e recalcula automaticamente os scores de correlação ponderada.</p>
+
+            <h4>O que é a Média Aritmética Setorial?</h4>
+            <p>A porcentagem exibida no canto superior direito de cada tabela representa a <strong>média real de variação diária</strong> de todos os ativos daquele setor naquele instante.</p>
+            <p><strong>Exemplo de leitura prática:</strong></p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li>Média EUA = <strong style="color:#059669">+0.75%</strong> → S&P 500, Nasdaq e Dow estão todos subindo → cenário de <em>risk-on</em> → favorável ao Índice brasileiro.</li>
+                <li>Média Juros EUA = <strong style="color:#dc2626">+0.30%</strong> → taxas de juros subindo → pressão nos ativos de risco → desfavorável ao Ibovespa.</li>
+                <li>Média Emergentes = <strong style="color:#dc2626">+0.50%</strong> → moedas emergentes depreciando contra o dólar → dólar mais forte → provável alta do câmbio no Brasil.</li>
+            </ul>
+            <p>Combinando as 10 médias setoriais, você tem uma fotografia macro de quais forças estão operando no mercado naquele exato momento.</p>
+
+            <h4>Como o Viés do Índice é calculado?</h4>
+            <p>O painel usa <strong>correlações ponderadas</strong> baseadas nos drivers históricos do Ibovespa:</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li>S&P 500 Futuros: <strong>45%</strong> do score (principal driver)</li>
+                <li>Euro Stoxx 600: <strong>20%</strong> (mercado europeu)</li>
+                <li>Petróleo WTI: <strong>15%</strong> (commodities exportadas)</li>
+                <li>Minério de Ferro (SGX): <strong>10%</strong> (VALE3 - maior peso do IBOV)</li>
+                <li>USD/BRL: <strong>-25%</strong> (dólar sobe → Ibov tende a cair)</li>
+                <li>DXY: <strong>-10%</strong> (dólar forte globalmente retira fluxo do Brasil)</li>
+                <li>VIX: <strong>-10%</strong> (medo sobe → mercado de risco cai)</li>
+            </ul>
+
+            <h4>Como o Viés do Dólar é calculado?</h4>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li>DXY (Índice Dólar): <strong>50%</strong> (força global do dólar)</li>
+                <li>Média das moedas emergentes (MXN, ZAR, TRY): <strong>35%</strong> (proxy para o BRL)</li>
+                <li>Yield EUA 10Y: <strong>5%</strong> (juros altos nos EUA fortalecem o dólar)</li>
+                <li>Diferencial de Juros (BRL10Y vs US10Y): <strong>Fator de Carry Trade</strong> (quando os juros brasileiros sobem mais que os americanos, atrai capital estrangeiro que vende dólar para comprar Real, pressionando o dólar para baixo)</li>
+                <li>S&P 500: <strong>-10%</strong> (risk-on → investidores vendem dólar protetor para comprar ações)</li>
+            </ul>
+
+            <h4>⚠️ O que é a Correlação Atípica?</h4>
+            <p>Em dias normais, Índice e Dólar se movem em direções opostas (correlação inversa). Contudo, em cenários específicos, ambos podem subir ou cair juntos:</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>Ambos em ALTA:</strong> Geralmente ocorre com forte alta de commodities (Petróleo/Minério puxando o Índice) simultaneamente com alta de juros nos EUA e Fed Hawk (fortalecendo o Dólar no mundo).</li>
+                <li><strong>Ambos em BAIXA:</strong> Ocorre em dias de forte desvalorização de commodities (derrubando o Índice) ao mesmo tempo em que os juros americanos recuam abruptamente (enfraquecendo o Dólar globalmente).</li>
+            </ul>
+
+            <h4>📊 Interpretação Prática do VIX</h4>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>VIX &lt; 15 (Risk-On):</strong> Mercado calmo. Investidores propensos a comprar risco (comprar Ibovespa).</li>
+                <li><strong>VIX 15 a 20 (Transição):</strong> Estado de atenção. Pequenas flutuações e realizações de lucros são esperadas.</li>
+                <li><strong>VIX &gt; 20 (Risk-Off):</strong> Alta aversão ao risco global. Cenário para buscar proteção (comprar Dólar e vender Ibovespa).</li>
+            </ul>
+
+            <h4>Como adicionar novos ativos?</h4>
+            <p>Clique no botão <strong>"Adicionar Ativo ao Portfólio"</strong>, preencha o nome, o Pair ID da Investing e a categoria. Os ativos são salvos no seu navegador permanentemente.</p>
+            <p>Para obter o Pair ID de qualquer ativo, acesse a página dele no <a href="https://br.investing.com" target="_blank">br.investing.com</a>, pressione <code>Ctrl+U</code> para ver o código-fonte e procure por <code>pairId</code>. O número correspondente é o código de monitoramento.</p>
+
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ MODAL MACRO E MICRO ══════════ -->
+<div id="modal-macro" class="modal-overlay" onclick="closeModal(event, 'modal-macro')">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-head">
+            <span>📚 Guia de Leitura Macro & Micro</span>
+            <button onclick="closeModal(event, 'modal-macro')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <h4>O que é Macro e Micro Economia no Day Trade?</h4>
+            <p>A <strong>Macro</strong> define o "clima" do mercado — você lê <em>antes das 9h</em> para saber se o mercado quer comprar ou vender risco. A <strong>Micro</strong> confirma ou contradiz a macro durante o pregão, via book, delta e fluxo das ações.</p>
+
+            <h4>🌍 MACRO — Leitura Pré-Mercado (antes das 9h)</h4>
+            <p><strong>Para o ÍNDICE (IBOVESPA / WINFUT):</strong></p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>S&P 500 Futuro:</strong> Principal driver. Subindo pré-market = pressão de alta no IBOV (~75-80% de correlação).</li>
+                <li><strong>DXY (Índice Dólar):</strong> DXY sobe = dólar forte = saída de emergentes = IBOV cai. DXY cai = IBOV sobe.</li>
+                <li><strong>VIX:</strong> Acima de 20 = aversão ao risco → venda de IBOV. Abaixo de 15 = apetite ao risco → compra de IBOV.</li>
+                <li><strong>Petróleo (WTI/Brent):</strong> Alta = Petrobras sobe = IBOV sobe (PETR + VALE = ~25% do índice).</li>
+                <li><strong>Minério de Ferro:</strong> Alta = VALE3 sobe. VALE3 é a ação de maior peso no Ibovespa (~12-15%), sendo o principal driver do setor de siderurgia e mineração.</li>
+                <li><strong>Treasuries EUA (US10Y):</strong> Juro EUA sobe = dólar forte = saída do Brasil.</li>
+                <li><strong>EWZ (ETF do Brasil em NY):</strong> Subindo antes de 9h = gringo comprando Brasil = confirma força no IBOV.</li>
+            </ul>
+            <p><strong>Para o DÓLAR (WDOFUT / USD/BRL):</strong></p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>DXY:</strong> Principal driver do USD/BRL. DXY sobe = dólar/real sobe.</li>
+                <li><strong>Moedas emergentes (MXN, ZAR, TRY):</strong> Se peso mexicano cai = emergentes fraquejando = BRL cai.</li>
+                <li><strong>CDS Brasil 5Y:</strong> Sobe = Brasil mais arriscado = BRL cai. Cai = confiança no Brasil = BRL sobe.</li>
+                <li><strong>Diferencial de juros (BRL10Y vs US10Y):</strong> SELIC/juros de longo prazo no Brasil altos vs juros americanos atraem investidores para o *Carry Trade* (investir no real para ganhar no diferencial de taxas), valorizando o Real e derrubando o dólar.</li>
+            </ul>
+
+            <h4>🔬 MICRO — Leitura Durante o Pregão (9h às 17h)</h4>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>Delta (agressão):</strong> Fluxo comprador dominante confirma viés de alta. Vendedor dominante, de baixa.</li>
+                <li><strong>Book (SuperDOM):</strong> Muita oferta acima = resistência real. Book vazio acima = caminho livre.</li>
+                <li><strong>ADRs (Monitor de Mercado):</strong> VALE3/PETR4 subindo in NY = estrangeiro comprando Brasil = confirma alta no índice.</li>
+                <li><strong>USD/BRL tick a tick:</strong> Dólar acelerando durante o pregão invalida viés de alta no índice.</li>
+            </ul>
+
+            <h4>📋 Sequência de Leitura do Viés (Método WS)</h4>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>PASSO 1 — Antes das 9h (Macro):</strong> S&P futuro + DXY + VIX + Commodities (Petróleo/Minério) → defina o viés: Alta / Baixa / Neutro.</li>
+                <li><strong>PASSO 2 — 9h às 9h30 (Abertura):</strong> GAP a favor ou contra o viés? Volume confirma? VALE e PETR seguem o índice?</li>
+                <li><strong>PASSO 3 — Durante o dia (Micro):</strong> Delta comprador? Book limpo? ADRs em alta? Dólar comportado?</li>
+                <li><strong>OPERAR:</strong> Apenas quando os 3 passos estão alinhados com o viés.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ MODAL TABELA DE PIDs ══════════ -->
+<div id="modal-pids" class="modal-overlay" onclick="closeModal(event, 'modal-pids')">
+    <div class="modal-box modal-box-wide" onclick="event.stopPropagation()">
+        <div class="modal-head">
+            <span>🔑 Tabela de Códigos — Pair IDs da Investing.com</span>
+            <button onclick="closeModal(event, 'modal-pids')">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <p>Use estes PIDs no campo <strong>"Adicionar Ativo"</strong> para incluir qualquer instrumento no painel.</p>
+            <table class="pid-table" style="width:100%; border-collapse:collapse; margin-top:1rem; font-size:0.9rem;">
+                <thead>
+                    <tr style="background:#1e293b; color:white;">
+                        <th style="padding:8px; text-align:left;">Nome</th>
+                        <th style="padding:8px; text-align:left;">Ticker</th>
+                        <th style="padding:8px; text-align:left;">PID</th>
+                        <th style="padding:8px; text-align:left;">Categoria</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">S&P 500 Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">ESM26</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8839</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Nasdaq 100 Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">NQM26</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8874</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dow Jones Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">YMM26</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8873</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">VIX (Volatilidade)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">VX</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>44336</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">S&P 500 (à vista)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">US500</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>166</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EWZ (ETF Brasil NY)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EWZ</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>14978</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil/EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Treasury EUA 10 anos</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">US10YT</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>23705</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Juros EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Petróleo WTI</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">CL</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8849</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Petróleo Brent</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">LCO</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8833</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Ouro (XAU/USD)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">GC</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8830</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Minério de Ferro Futuros (SGX)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">TIO / SCO</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>961741</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Bloomberg Commodity Index</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">BCOM</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>948434</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">DXY (Índice Dólar)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">DX</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8827</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Câmbio</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">USD/BRL (Dólar BR)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>2103</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Mini Ibovespa (Vencimento)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">WINM26</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>941612</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Mini Ibovespa Futuros (Contínuo)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">WINc1</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>941612</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">CDS 5Y (Risco Brasil)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">CDS5Y</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>1116031</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">BRL10Y (Juros Brasil 10A)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">BRL10Y</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>24029</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Euro Stoxx 600</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EU50</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>40823</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Europa</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">S&P/B3 Ibovespa VIX</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">VXBR</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Bradesco Fundo de Inv. Multimercado</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">0P000147RI</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Fundos</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Nasdaq</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">IXIC</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>20</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dow Jones</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">DJI</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>169</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Ibovespa</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">IBOV</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>179</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Brasil</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">LQD (IG Bond ETF)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">LQD</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>26478</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EMB (USD EM Bond)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EMB</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Emergentes</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">HYG (High Yield Bond)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">HYG</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>25756</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">FTSE 100 Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">UK100</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>27</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Europa</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Hang Seng Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">HK50</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>184</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Europa/Ásia</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">DAX Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">DE30</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8826</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Europa</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Nikkei 225 Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">JP225</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>36</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Europa/Ásia</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Shanghai</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">SSEC</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>37583</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Europa/Ásia</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Baltic Dry</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">BADI</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Prata</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">SI</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8836</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Cobre</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">HG</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>8831</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Trend ETF LBMA Ouro</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">GOLD11</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">USDT/TRY</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Criptomoedas</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dólar/ZAR</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>17</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Emergentes</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dólar/MXN</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>39</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Emergentes</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUR/BRL</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>1617</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Câmbio</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUR/Dólar</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>2124</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Câmbio</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dólar/JPY</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>3</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Câmbio</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA a 2 anos</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">US2YT=X</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>23701</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Juros EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUA a 30 anos</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">US30YT=X</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>23706</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Juros EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">US 2 YR T-Note Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">TUU26</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Juros EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Ultra 10-Year T-Note Futuros</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">TNc1</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Juros EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Xtrackers II Australia Gov Bond</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">X2AE</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Juros EUA</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Bitcoin Euro</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">BTC/EUR</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Criptomoedas</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Bitcoin</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">BTC/USD</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>1057391</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Criptomoedas</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">XAU/EUR</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">XAU/JPY</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Commodities</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Container de notificações Toast -->
+<div id="toast-container"></div>
+
+<!-- SCRIPTS — Ordem importante! (igual ao painel de referência) -->
+<script src="js/sockjs.min.js"></script>
+<script src="js/summary.js"></script>
+<script src="js/bias.js"></script>
+<script src="js/tables.js"></script>
+<script src="js/fxindex.js"></script>
+
+<script>
+    // Alternador de Tema
+    function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById('btn-blue').classList.toggle('active', theme === 'blue');
+        document.getElementById('btn-neon').classList.toggle('active', theme === 'neon');
+        localStorage.setItem('ws_theme_v2', theme);
+    }
+
+    // Recupera tema salvo ao carregar
+    (function() {
+        var saved = localStorage.getItem('ws_theme_v2') || 'blue';
+        setTheme(saved);
+    })();
+
+    // Gaveta do formulário
+    function toggleForm() {
+        document.getElementById('form-card').classList.toggle('open');
+    }
+
+    // Submissão de novo ativo — SEM reload de página
+    function submitAsset(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var sigla = document.getElementById('f-name').value.trim();
+        var pid   = document.getElementById('f-pid').value.trim();
+        var cat   = document.getElementById('f-cat').value;
+        // Só fecha o form e reseta se a inserção for bem-sucedida
+        var ok = window.addNewAsset(sigla, pid, cat);
+        if (ok !== false) {
+            e.target.reset();
+            document.getElementById('form-card').classList.remove('open');
+        }
+        return false;
+    }
+
+    // Modal
+    function openModal(e, id) { e.preventDefault(); document.getElementById(id || 'modal').classList.add('open'); }
+    function closeModal(e, id) { e.preventDefault(); document.getElementById(id || 'modal').classList.remove('open'); }
+
+    // ─── Autenticação e Sessão ────────────────────────────────────────
+    function logoutUser() {
+        var token = localStorage.getItem('vsstraeder_token');
+        if (token) {
+            fetch('/api/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
+        }
+        localStorage.clear();
+        window.location.replace('login.html');
+    }
+
+    // Exibe link de admin se o usuário for admin
+    (function() {
+        try {
+            var user = JSON.parse(localStorage.getItem('vsstraeder_user') || '{}');
+            if (user.role === 'admin') {
+                var adminLink = document.getElementById('admin-link');
+                if (adminLink) adminLink.style.display = 'inline-flex';
+            }
+        } catch(e) {}
+    })();
+
+    // Verificação periódica de sessão (a cada 5 minutos)
+    setInterval(function() {
+        var token = localStorage.getItem('vsstraeder_token');
+        if (!token) { window.location.replace('login.html'); return; }
+        fetch('/api/check-access', { headers: { 'Authorization': 'Bearer ' + token } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.allowed) {
+                    if (data.reason === 'simultaneous_login') {
+                        alert('Sua sessão foi encerrada. Outro dispositivo realizou login.');
+                        localStorage.clear();
+                        window.location.replace('login.html');
+                    } else {
+                        window.location.replace('payment.html?expired=1');
+                    }
+                }
+            })
+            .catch(function() {});
+    }, 5 * 60 * 1000);
+</script>
+
+</body>
+</html>
