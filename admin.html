@@ -471,7 +471,7 @@
     const user  = JSON.parse(localStorage.getItem('vsstraeder_user') || '{}');
 
     if (!token) { window.location.href = 'login.html'; }
-    if (user.role !== 'admin') { window.location.href = 'index.html'; }
+    if (user.isAdmin !== true) { window.location.href = 'index.html'; }
 
     if (user.name) {
         document.getElementById('admin-name').textContent = '👤 ' + user.name;
