@@ -115,13 +115,35 @@ const cryptos = [
     { sigla: 'ETHEREUM (ETH/USD)', pid: '1061443' }
 ];
 
-// Recupera ativos customizados salvos no localStorage
-function getCustomAssets() {
+// Cache local dos ativos da nuvem (evita chamadas repetidas)
+let _cachedCustomAssets = null;
+
+// Recupera ativos customizados do servidor (API)
+async function fetchCustomAssetsFromAPI() {
+    const token = localStorage.getItem('vsstraeder_token');
+    if (!token) return [];
     try {
-        return JSON.parse(localStorage.getItem('ws_custom_assets_v2')) || [];
+        const resp = await fetch('/api/assets', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        _cachedCustomAssets = (data.assets || []).map(a => ({
+            sigla: a.name,
+            pid:   a.pid,
+            categoria: a.category,
+            id: a.id
+        }));
+        return _cachedCustomAssets;
     } catch (e) {
+        console.error('Erro ao buscar ativos da API:', e);
         return [];
     }
+}
+
+// Retorna o cache ou [] enquanto carrega
+function getCustomAssets() {
+    return _cachedCustomAssets || [];
 }
 
 // Combina os ativos padrão com os customizados divididos nas 10 categorias oficiais
@@ -175,7 +197,12 @@ const createTable = (table_selector, data, areCustomMap) => {
 let all_data = [];
 let pid_arr = [];
 
-function loadAllTables() {
+async function loadAllTables() {
+    // Busca ativos da nuvem (API) se ainda não carregou
+    if (_cachedCustomAssets === null) {
+        await fetchCustomAssetsFromAPI();
+    }
+
     const assets = getCombinedAssets();
     
     const custom = getCustomAssets();
@@ -184,7 +211,7 @@ function loadAllTables() {
         areCustomMap[a.pid] = true;
     });
 
-    // Amalgama tudo de forma única para inscrição única (Dólar/BRL aparece na de emergentes, latam, etc., mas só inscrevemos uma vez!)
+    // Amalgama tudo de forma única para inscrição única
     const allRaw = [
         ...assets.eua, ...assets.curva_eua, ...assets.commodities, 
         ...assets.dx, ...assets.brasil, ...assets.emergentes, 
@@ -213,7 +240,7 @@ function loadAllTables() {
     createTable('#cryptos-table', assets.cryptos, areCustomMap);
 }
 
-// Inicialização
+// Inicialização — busca ativos da nuvem antes de renderizar
 document.addEventListener('DOMContentLoaded', () => {
     loadAllTables();
 });

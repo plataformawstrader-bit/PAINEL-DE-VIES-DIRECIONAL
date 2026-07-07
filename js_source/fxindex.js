@@ -210,52 +210,95 @@ function updateConnectionStatus(state) {
 
 // ─── Adicionar / Remover ativos ────────────────────────────────
 
-window.addNewAsset = function(sigla, pid, categoria) {
+window.addNewAsset = async function(sigla, pid, categoria) {
     sigla = sigla.trim().toUpperCase();
-    pid   = pid.trim().replace(/\D/g,''); // Remove qualquer não-dígito
+    pid   = pid.trim().replace(/\D/g,'');
 
     if (!sigla || !pid || !categoria) {
         showToast('⚠️ Preencha os três campos antes de inserir!', 'error');
         return false;
     }
 
-    // Verifica duplicidade
+    // Verifica duplicidade no painel atual
     var isDuplicate = (typeof all_data !== 'undefined') && all_data.some(function(a) { return a.pid === pid; });
     if (isDuplicate) {
         showToast('⚠️ PID ' + pid + ' já está monitorado no painel!', 'error');
         return false;
     }
 
-    // Salva no localStorage
-    var stored = [];
-    try { stored = JSON.parse(localStorage.getItem('ws_custom_assets_v2') || '[]'); } catch(e) {}
-    var alreadyStored = stored.some(function(a) { return a.pid === pid; });
-    if (alreadyStored) {
-        showToast('⚠️ Este ativo já está salvo!', 'error');
+    const token = localStorage.getItem('vsstraeder_token');
+    if (!token) {
+        showToast('❌ Sessão expirada. Faça login novamente.', 'error');
         return false;
     }
 
-    stored.push({ sigla: sigla, pid: pid, categoria: categoria });
-    localStorage.setItem('ws_custom_assets_v2', JSON.stringify(stored));
+    try {
+        const resp = await fetch('/api/assets', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: sigla, pid: pid, category: categoria })
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            showToast('❌ Erro ao salvar: ' + (data.error || 'tente novamente'), 'error');
+            return false;
+        }
 
-    // Recarrega tabelas SEM flash de tela (sem recarregar página)
-    loadAllTables();
+        // Atualiza o cache local
+        if (_cachedCustomAssets === null) _cachedCustomAssets = [];
+        _cachedCustomAssets.push({ sigla: sigla, pid: pid, categoria: categoria, id: data.asset.id });
 
-    // Inscreve imediatamente no WebSocket aberto
-    subscribeOne(pid);
+        // Recarrega tabelas
+        loadAllTables();
+        subscribeOne(pid);
 
-    showToast('✅ ' + sigla + ' (PID: ' + pid + ') inserido com sucesso na categoria ' + categoria + '!', 'success');
-    return true;
+        showToast('✅ ' + sigla + ' (PID: ' + pid + ') inserido com sucesso na categoria ' + categoria + '!', 'success');
+        return true;
+    } catch (e) {
+        showToast('❌ Falha de conexão ao salvar ativo.', 'error');
+        return false;
+    }
 };
 
-window.removeAsset = function(pid) {
-    var stored = [];
-    try { stored = JSON.parse(localStorage.getItem('ws_custom_assets_v2') || '[]'); } catch(e) {}
-    stored = stored.filter(function(a) { return a.pid !== pid; });
-    localStorage.setItem('ws_custom_assets_v2', JSON.stringify(stored));
-    activeSubscriptions.delete('pid-' + pid + ':');
-    loadAllTables();
-    showToast('Ativo removido do painel.', 'success');
+window.removeAsset = async function(pid, assetId) {
+    const token = localStorage.getItem('vsstraeder_token');
+    if (!token) return;
+
+    // Se não tiver o id diretamente, busca do cache
+    let id = assetId;
+    if (!id && _cachedCustomAssets) {
+        const found = _cachedCustomAssets.find(a => a.pid === pid);
+        if (found) id = found.id;
+    }
+
+    if (!id) {
+        showToast('❌ Não foi possível identificar o ativo para exclusão.', 'error');
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/assets/' + id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            showToast('❌ Erro ao remover ativo.', 'error');
+            return;
+        }
+        // Remove do cache local
+        if (_cachedCustomAssets) {
+            _cachedCustomAssets = _cachedCustomAssets.filter(a => a.pid !== pid);
+        }
+        activeSubscriptions.delete('pid-' + pid + ':');
+        loadAllTables();
+        showToast('Ativo removido do painel.', 'success');
+    } catch (e) {
+        showToast('❌ Falha de conexão ao remover ativo.', 'error');
+    }
 };
 
 // ─── Toast ─────────────────────────────────────────────────────

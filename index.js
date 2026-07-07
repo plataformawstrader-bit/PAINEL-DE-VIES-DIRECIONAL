@@ -40,6 +40,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Confiar no proxy da Vercel para pegar o IP real do usuário (evita block global no Rate Limit)
+app.set('trust proxy', 1);
+
 // Servir arquivos estáticos (páginas HTML, CSS e JS) da raiz
 app.use(express.static(__dirname));
 
@@ -824,6 +827,72 @@ app.get('/api/admin/financial-stats', authenticateToken, requireAdmin, async (re
     } catch (e) {
         console.error('Erro nos relatórios financeiros:', e);
         res.status(500).json({ error: 'Erro ao gerar dados financeiros.' });
+    }
+});
+
+// ========== ROTAS DE ATIVOS PERSONALIZADOS (USER ASSETS) ==========
+
+// 1. Obter todos os ativos do usuário logado
+app.get('/api/assets', authenticateToken, async (req, res) => {
+    try {
+        const { data: assets, error } = await supabase
+            .from('user_assets')
+            .select('*')
+            .eq('user_id', req.user.id)
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        res.json({ success: true, assets });
+    } catch (e) {
+        console.error('Erro ao buscar ativos:', e);
+        res.status(500).json({ error: 'Erro ao buscar ativos do banco de dados.' });
+    }
+});
+
+// 2. Adicionar um novo ativo ao portfólio
+app.post('/api/assets', authenticateToken, async (req, res) => {
+    const { name, pid, category } = req.body;
+
+    if (!name || !pid || !category) {
+        return res.status(400).json({ error: 'Nome, PID e Categoria são necessários.' });
+    }
+
+    try {
+        const { data: newAsset, error } = await supabase
+            .from('user_assets')
+            .insert({
+                user_id: req.user.id,
+                name: name.toUpperCase().trim(),
+                pid: pid.trim(),
+                category: category.trim()
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        res.json({ success: true, asset: newAsset });
+    } catch (e) {
+        console.error('Erro ao salvar ativo:', e);
+        res.status(500).json({ error: 'Erro ao salvar ativo no banco de dados.' });
+    }
+});
+
+// 3. Remover um ativo
+app.delete('/api/assets/:id', authenticateToken, async (req, res) => {
+    const assetId = req.params.id;
+
+    try {
+        const { error } = await supabase
+            .from('user_assets')
+            .delete()
+            .eq('id', assetId)
+            .eq('user_id', req.user.id);
+
+        if (error) throw error;
+        res.json({ success: true, message: 'Ativo deletado com sucesso.' });
+    } catch (e) {
+        console.error('Erro ao deletar ativo:', e);
+        res.status(500).json({ error: 'Erro ao deletar ativo do banco de dados.' });
     }
 });
 

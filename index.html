@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WS PAINEL DE MONITORAMENTO</title>
-    <meta name="description" content="WS PAINEL DE MONITORAMENTO V2 — 10 categorias de ativos em tempo real com motor de viés para Índice e Dólar.">
+    <meta name="description" content="WS PAINEL DE MONITORAMENTO  — 10 categorias de ativos em tempo real com motor de viés para Índice e Dólar.">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
 
     <!-- ══════════ PROTEÇÃO DE ACESSO JWT ══════════ -->
     <script>
         (function() {
-            var token = localStorage.getItem('vsstraeder_token');
+            var token = localStorage.getItem('WSTrader_token');
             if (!token) { window.location.replace('login.html'); return; }
 
             // Decodifica payload JWT sem verificação de assinatura (verificação real é no backend)
@@ -20,7 +20,7 @@
                 var now = Math.floor(Date.now() / 1000);
                 // Token expirado localmente
                 if (payload.exp && payload.exp < now) {
-                    localStorage.removeItem('vsstraeder_token');
+                    localStorage.removeItem('WSTrader_token');
                     window.location.replace('login.html');
                     return;
                 }
@@ -587,14 +587,13 @@
     }
 
     // Submissão de novo ativo — SEM reload de página
-    function submitAsset(e) {
+    async function submitAsset(e) {
         e.preventDefault();
         e.stopPropagation();
         var sigla = document.getElementById('f-name').value.trim();
         var pid   = document.getElementById('f-pid').value.trim();
         var cat   = document.getElementById('f-cat').value;
-        // Só fecha o form e reseta se a inserção for bem-sucedida
-        var ok = window.addNewAsset(sigla, pid, cat);
+        var ok = await window.addNewAsset(sigla, pid, cat);
         if (ok !== false) {
             e.target.reset();
             document.getElementById('form-card').classList.remove('open');
@@ -620,7 +619,7 @@
     (function() {
         try {
             var user = JSON.parse(localStorage.getItem('vsstraeder_user') || '{}');
-            if (user.role === 'admin') {
+            if (user.isAdmin === true) {
                 var adminLink = document.getElementById('admin-link');
                 if (adminLink) adminLink.style.display = 'inline-flex';
             }
