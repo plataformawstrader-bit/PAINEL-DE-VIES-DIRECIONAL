@@ -11,7 +11,7 @@
     <!-- ══════════ PROTEÇÃO DE ACESSO JWT ══════════ -->
     <script>
         (function() {
-            var token = localStorage.getItem('WSTrader_token');
+            var token = localStorage.getItem('vsstraeder_token');
             if (!token) { window.location.replace('login.html'); return; }
 
             // Decodifica payload JWT sem verificação de assinatura (verificação real é no backend)
@@ -20,7 +20,7 @@
                 var now = Math.floor(Date.now() / 1000);
                 // Token expirado localmente
                 if (payload.exp && payload.exp < now) {
-                    localStorage.removeItem('WSTrader_token');
+                    localStorage.removeItem('vsstraeder_token');
                     window.location.replace('login.html');
                     return;
                 }
