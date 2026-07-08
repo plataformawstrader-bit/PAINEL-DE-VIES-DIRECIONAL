@@ -52,6 +52,7 @@ window.biasEngine = {
 
         // Juros EUA
         us10y:      { pid: '23705',  pcp: 0 },  // Yield EUA 10 Anos
+        us2y:       { pid: '23701',  pcp: 0 },  // Yield EUA 2 Anos (curva de juros)
     },
 
     // ----- Registro de todos os PIDs monitorados pelo engine -----
@@ -92,10 +93,12 @@ window.biasEngine = {
         // Threshold dinâmico: VIX alto = mercado volátil = exige score maior para confirmar
         var dynamicThreshold = 0.12 + (Math.abs(p.vix.pcp) > 3 ? 0.08 : 0);
 
+        // Yield Curve: spread entre juros de 2 anos e 10 anos
+        // Curva invertida (2Y > 10Y → spread negativo) = aperto monetário = pressão em emergentes
+        var yieldCurve = p.us10y.pcp - p.us2y.pcp;
+
         // Pesos calibrados por correlação estatística real (pesquisa 2024-2025):
-        // Positivos: S&P500(0.30) + Stoxx(0.10) + Petróleo(0.12) + Minério(0.10) + Cobre(0.05) + Nasdaq(0.03)
-        // Negativos: USD/BRL(0.15) + VIX(0.08) + US10Y(0.05) + DXY(0.05) + Ouro(0.02 risk-off)
-        var score = (p.sp500.pcp    * 0.30)   // Maior driver externo (corr. 0.55-0.75)
+        var score = (p.sp500.pcp    * 0.28)   // Maior driver externo (corr. 0.55-0.75)
                   + (p.stoxx.pcp   * 0.10)   // Sessão europeia antes da abertura
                   + (p.oil.pcp     * 0.12)   // Petrobras ~12% do IBOV
                   + (p.ironOre.pcp * 0.10)   // Vale ~11% do IBOV
@@ -103,7 +106,8 @@ window.biasEngine = {
                   + (p.nasdaq.pcp  * 0.03)   // Sentimento tech/risco
                   - (p.usdbrl.pcp  * 0.15)   // BRL forte = inflow estrangeiro = IBOV sobe
                   - (p.vix.pcp     * 0.08)   // Medo = saída de emergentes
-                  - (p.us10y.pcp   * 0.05)   // Juros EUA sobem = capital sai de emergentes
+                  - (p.us10y.pcp   * 0.04)   // Juros EUA sobem = capital sai de emergentes
+                  - (p.us2y.pcp    * 0.03)   // Juros curtos (sensível ao Fed)
                   - (p.dxy.pcp     * 0.05)   // USD forte global = liquidez mais apertada
                   - (p.gold.pcp    * 0.02);  // Ouro sobe = risco-off = pressão baixista no IBOV
 
@@ -116,27 +120,33 @@ window.biasEngine = {
                         - (p.usdbrl.pcp  * 0.15)   // Ajuste cambial
                         - (p.vix.pcp     * 0.05);  // Prêmio de risco
 
-        // Fatores de Alta vs Baixa
-        var bullFactors = [
-            p.sp500.pcp > 0, p.stoxx.pcp > 0, p.oil.pcp > 0, p.ironOre.pcp > 0,
-            p.copper.pcp > 0, p.nasdaq.pcp > 0,
-            p.usdbrl.pcp < 0, p.dxy.pcp < 0, p.vix.pcp < 0, p.us10y.pcp < 0
+        // Confiança PONDERADA: cada fator pesa proporcional ao seu peso real no score
+        // Formato: [condição_bull, peso_absoluto]
+        var weightedFactors = [
+            { bull: p.sp500.pcp > 0,    bear: p.sp500.pcp < 0,    w: 0.28 },
+            { bull: p.stoxx.pcp > 0,    bear: p.stoxx.pcp < 0,    w: 0.10 },
+            { bull: p.oil.pcp > 0,      bear: p.oil.pcp < 0,      w: 0.12 },
+            { bull: p.ironOre.pcp > 0,  bear: p.ironOre.pcp < 0,  w: 0.10 },
+            { bull: p.copper.pcp > 0,   bear: p.copper.pcp < 0,   w: 0.05 },
+            { bull: p.nasdaq.pcp > 0,   bear: p.nasdaq.pcp < 0,   w: 0.03 },
+            { bull: p.usdbrl.pcp < 0,   bear: p.usdbrl.pcp > 0,   w: 0.15 },
+            { bull: p.vix.pcp < 0,      bear: p.vix.pcp > 0,      w: 0.08 },
+            { bull: p.us10y.pcp < 0,    bear: p.us10y.pcp > 0,    w: 0.04 },
+            { bull: p.us2y.pcp < 0,     bear: p.us2y.pcp > 0,     w: 0.03 },
+            { bull: p.dxy.pcp < 0,      bear: p.dxy.pcp > 0,      w: 0.05 },
+            { bull: p.gold.pcp < 0,     bear: p.gold.pcp > 0,     w: 0.02 }
         ];
-        var bearFactors = [
-            p.sp500.pcp < 0, p.stoxx.pcp < 0, p.oil.pcp < 0, p.ironOre.pcp < 0,
-            p.copper.pcp < 0, p.nasdaq.pcp < 0,
-            p.usdbrl.pcp > 0, p.dxy.pcp > 0, p.vix.pcp > 0, p.us10y.pcp > 0
-        ];
-        var bullCount = bullFactors.filter(Boolean).length;
-        var bearCount = bearFactors.filter(Boolean).length;
+        var totalWeight = weightedFactors.reduce(function(s, f) { return s + f.w; }, 0);
+        var bullWeight = weightedFactors.reduce(function(s, f) { return s + (f.bull ? f.w : 0); }, 0);
+        var bearWeight = weightedFactors.reduce(function(s, f) { return s + (f.bear ? f.w : 0); }, 0);
 
         var confidence = 0;
         if (score > dynamicThreshold) {
-            confidence = Math.round((bullCount / bullFactors.length) * 100);
+            confidence = Math.round((bullWeight / totalWeight) * 100);
         } else if (score < -dynamicThreshold) {
-            confidence = Math.round((bearCount / bearFactors.length) * 100);
+            confidence = Math.round((bearWeight / totalWeight) * 100);
         } else {
-            confidence = Math.round((Math.max(bullCount, bearCount) / bullFactors.length) * 100);
+            confidence = Math.round((Math.max(bullWeight, bearWeight) / totalWeight) * 100);
         }
 
         return {
@@ -144,6 +154,7 @@ window.biasEngine = {
             gap: gapEstimate,
             confidence: confidence,
             threshold: dynamicThreshold,
+            yieldCurve: yieldCurve,
             bias: score > dynamicThreshold ? 'ALTA' : score < -dynamicThreshold ? 'BAIXA' : 'NEUTRO',
             biasClass: score > dynamicThreshold ? 'up' : score < -dynamicThreshold ? 'down' : 'neutral',
             sp500: p.sp500.pcp,
@@ -155,6 +166,7 @@ window.biasEngine = {
             dxy: p.dxy.pcp,
             vix: p.vix.pcp,
             us10y: p.us10y.pcp,
+            us2y: p.us2y.pcp,
             usdbrl: p.usdbrl.pcp
         };
     },
@@ -171,45 +183,47 @@ window.biasEngine = {
         var dynamicThreshold = 0.08 + (Math.abs(p.vix.pcp) > 3 ? 0.05 : 0);
 
         // Cesta de emergentes rebalanceada:
-        // MXN (40%) — melhor proxy LatAm, corr. 0.50-0.65 com BRL
-        // ZAR (35%) — África do Sul: proxy commodity-EM, corr. 0.45-0.60
-        // TRY (25% → 10%) — Turquia: dinâmica própria (inflação estrutural), peso reduzido
         var emergentesAvg = (p.mxn.pcp * 0.55) + (p.zar.pcp * 0.35) + (p.try_.pcp * 0.10);
 
         // Diferencial de Juros (Carry Trade): BRL alto = BRL atraente = USD/BRL cai
         var differential = p.brl10y.pcp - p.us10y.pcp;
 
-        // Pesos calibrados:
-        // DXY(0.35): principal driver do USD globalmente
-        // Emergentes(0.20): proxy de fluxo para EM
-        // VIX(0.07): medo = fuga de emergentes = BRL fraqueja
-        // US10Y(0.08): juros EUA sobem = capital sai do BRL
-        // Petróleo(-0.07): commodities sobem = saldo comercial melhora = BRL fortalece
-        // S&P500(-0.10): risk-on = capital entra no BRL
-        // Diferencial(-0.08): spread de juros alto = carrego atrativo = BRL forte
-        var score = (p.dxy.pcp       * 0.35)
-                  + (emergentesAvg   * 0.20)
+        // Yield Curve US: spread 10Y - 2Y
+        var yieldCurve = p.us10y.pcp - p.us2y.pcp;
+
+        var score = (p.dxy.pcp       * 0.32)
+                  + (emergentesAvg   * 0.18)
                   + (p.vix.pcp       * 0.07)
-                  + (p.us10y.pcp     * 0.08)
+                  + (p.us10y.pcp     * 0.06)
+                  + (p.us2y.pcp      * 0.04)   // Fed expectations (curto prazo)
                   - (p.oil.pcp       * 0.07)
                   - (p.sp500.pcp     * 0.10)
                   - (differential    * 0.08);
 
         var gapEstimate = (p.dxy.pcp * 0.55) + (emergentesAvg * 0.30) + (p.vix.pcp * 0.05) - (p.oil.pcp * 0.10);
 
-        // Fatores de Alta vs Baixa
-        var bullFactors = [p.dxy.pcp > 0, emergentesAvg > 0, p.vix.pcp > 0, p.us10y.pcp > 0, p.sp500.pcp < 0, differential < 0, p.oil.pcp < 0];
-        var bearFactors = [p.dxy.pcp < 0, emergentesAvg < 0, p.vix.pcp < 0, p.us10y.pcp < 0, p.sp500.pcp > 0, differential > 0, p.oil.pcp > 0];
-        var bullCount = bullFactors.filter(Boolean).length;
-        var bearCount = bearFactors.filter(Boolean).length;
+        // Confiança PONDERADA
+        var weightedFactors = [
+            { bull: p.dxy.pcp > 0,      bear: p.dxy.pcp < 0,      w: 0.32 },
+            { bull: emergentesAvg > 0,   bear: emergentesAvg < 0,   w: 0.18 },
+            { bull: p.vix.pcp > 0,       bear: p.vix.pcp < 0,       w: 0.07 },
+            { bull: p.us10y.pcp > 0,     bear: p.us10y.pcp < 0,     w: 0.06 },
+            { bull: p.us2y.pcp > 0,      bear: p.us2y.pcp < 0,      w: 0.04 },
+            { bull: p.sp500.pcp < 0,     bear: p.sp500.pcp > 0,     w: 0.10 },
+            { bull: p.oil.pcp < 0,       bear: p.oil.pcp > 0,       w: 0.07 },
+            { bull: differential < 0,    bear: differential > 0,    w: 0.08 }
+        ];
+        var totalWeight = weightedFactors.reduce(function(s, f) { return s + f.w; }, 0);
+        var bullWeight = weightedFactors.reduce(function(s, f) { return s + (f.bull ? f.w : 0); }, 0);
+        var bearWeight = weightedFactors.reduce(function(s, f) { return s + (f.bear ? f.w : 0); }, 0);
 
         var confidence = 0;
         if (score > dynamicThreshold) {
-            confidence = Math.round((bullCount / bullFactors.length) * 100);
+            confidence = Math.round((bullWeight / totalWeight) * 100);
         } else if (score < -dynamicThreshold) {
-            confidence = Math.round((bearCount / bearFactors.length) * 100);
+            confidence = Math.round((bearWeight / totalWeight) * 100);
         } else {
-            confidence = Math.round((Math.max(bullCount, bearCount) / bullFactors.length) * 100);
+            confidence = Math.round((Math.max(bullWeight, bearWeight) / totalWeight) * 100);
         }
 
         return {
@@ -217,6 +231,7 @@ window.biasEngine = {
             gap: gapEstimate,
             confidence: confidence,
             threshold: dynamicThreshold,
+            yieldCurve: yieldCurve,
             bias: score > dynamicThreshold ? 'ALTA' : score < -dynamicThreshold ? 'BAIXA' : 'NEUTRO',
             biasClass: score > dynamicThreshold ? 'up' : score < -dynamicThreshold ? 'down' : 'neutral',
             dxy: p.dxy.pcp,
@@ -225,6 +240,7 @@ window.biasEngine = {
             vix: p.vix.pcp,
             oil: p.oil.pcp,
             us10y: p.us10y.pcp,
+            us2y: p.us2y.pcp,
             brl10y: p.brl10y.pcp
         };
     },

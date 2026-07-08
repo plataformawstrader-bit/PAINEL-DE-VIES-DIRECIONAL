@@ -361,6 +361,7 @@
         <ul class="footer-links">
             <li><a href="#" onclick="openModal(event, 'modal')">Sobre & Como usar</a></li>
             <li><a href="#" onclick="openModal(event, 'modal-macro')">📚 Guia Macro & Micro</a></li>
+            <li><a href="#" onclick="openModal(event, 'modal-score')">📐 Score, Gap & Confiança</a></li>
             <li><a href="#" onclick="openModal(event, 'modal-pids')">🔑 Tabela de PIDs</a></li>
         </ul>
     </footer>
@@ -546,6 +547,7 @@
                     <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">USDT/TRY</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>-</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Criptomoedas</td></tr>
                     <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dólar/ZAR</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>17</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Emergentes</td></tr>
                     <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dólar/MXN</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>39</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Emergentes</td></tr>
+                    <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dólar/CLP (Chile)</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>2108</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Emergentes</td></tr>
                     <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUR/BRL</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>1617</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Câmbio</td></tr>
                     <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">EUR/Dólar</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>2124</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Câmbio</td></tr>
                     <tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Dólar/JPY</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">-</td><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><code>3</code></td><td style="padding:8px; border-bottom:1px solid #e2e8f0;">Câmbio</td></tr>
@@ -563,7 +565,43 @@
         </div>
     </div>
 </div>
+<!-- ══════════ MODAL SCORE, GAP & CONFIANÇA ══════════ -->
+<div id="modal-score" class="modal-overlay" onclick="closeModal(event, 'modal-score')">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-head">
+            <span>📐 Guia: Score, Gap & Confiança Ponderada</span>
+            <button onclick="closeModal(event, 'modal-score')">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <h4>Como interpretar as Métricas do Engine?</h4>
+            <p>O <strong>WS Bias Engine V2</strong> calcula três métricas essenciais para apoiar a sua tomada de decisão no pré-mercado e na abertura:</p>
 
+            <h4 style="color:var(--accent);">1. Score Direcional</h4>
+            <p>O <strong>Score</strong> é a soma algébrica das variações percentuais (%) dos ativos globais, multiplicadas por seus respectivos pesos de correlação.</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li>Se o score supera o limite dinâmico de volatilidade (Threshold), o viés é classificado como <strong>ALTA</strong>.</li>
+                <li>Se cai abaixo do limite negativo, o viés é de <strong>BAIXA</strong>.</li>
+                <li>Entre os dois limites, o viés é considerado <strong>NEUTRO</strong>.</li>
+            </ul>
+
+            <h4 style="color:var(--accent);">2. Gap Estimado</h4>
+            <p>O <strong>Gap Estimado</strong> prevê a variação percentual com que o Índice (INDFUT) ou o Dólar (USD/BRL) deve abrir o pregão às 9:00 BRT.</p>
+            <p>O cálculo simula o "Fair Value" na abertura pesando os setores mais importantes:</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>No Índice:</strong> Pondera o S&P 500 (40%), Europa (15%), Petróleo (12%), Minério de Ferro (10%) e Cobre (3%), subtraindo o prêmio de risco (VIX) e a variação cambial (BRL).</li>
+                <li><strong>No Dólar:</strong> Pondera o DXY (55%), cesta de moedas emergentes (30%), prêmio do VIX (5%) e subtrai a força das commodities (Petróleo).</li>
+            </ul>
+
+            <h4 style="color:var(--accent);">3. Confiança Ponderada (Nova Metodologia)</h4>
+            <p>Diferente de sistemas comuns que dão peso igual a todos os fatores, nossa nova metodologia calcula a <strong>Confiança Ponderada</strong> baseada no grau de concordância dos ativos com a direção indicada pelo Score, respeitando a importância matemática de cada ativo:</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li>Se o viés é de <strong>Alta</strong>, o sistema soma os pesos dos ativos que estão em território de alta. Se o viés é de <strong>Baixa</strong>, soma os pesos dos ativos em baixa.</li>
+                <li>A confiança exibida é a porcentagem da força total de correlação alinhada com o viés.</li>
+                <li><strong>Exemplo prático:</strong> S&P 500 (peso 28%) e Petróleo (peso 12%) juntos representam 40% da confiança. Se apenas eles concordarem com o movimento, a confiança será de pelo menos 40%, enquanto ativos menores como Ouro (peso 2%) têm impacto muito menor sobre a barra de confiança.</li>
+            </ul>
+        </div>
+    </div>
+</div>
 <!-- Container de notificações Toast -->
 <div id="toast-container"></div>
 
