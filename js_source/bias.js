@@ -35,7 +35,7 @@ window.biasEngine = {
         oil:        { pid: '8849',   pcp: 0 },  // Petróleo WTI
         gold:       { pid: '8830',   pcp: 0 },  // Ouro
         ironOre:    { pid: '961741', pcp: 0 },  // Minério de Ferro
-        copper:     { pid: '8833',   pcp: 0 },  // Cobre (proxy crescimento global)
+        copper:     { pid: '8831',   pcp: 0 },  // Cobre HG (proxy crescimento global - "Dr. Copper")
 
         // Dólar Index e G7
         dxy:        { pid: '8827',   pcp: 0 },  // DXY Índice Dólar

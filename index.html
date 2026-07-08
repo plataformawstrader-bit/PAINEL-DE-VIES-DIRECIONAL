@@ -391,24 +391,30 @@
             <p>Combinando as 10 médias setoriais, você tem uma fotografia macro de quais forças estão operando no mercado naquele exato momento.</p>
 
             <h4>Como o Viés do Índice é calculado?</h4>
-            <p>O painel usa <strong>correlações ponderadas</strong> baseadas nos drivers históricos do Ibovespa:</p>
+            <p>O painel usa <strong>correlações ponderadas</strong> calibradas com base em dados estatísticos reais do mercado brasileiro (2024-2025):</p>
             <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
-                <li>S&P 500 Futuros: <strong>45%</strong> do score (principal driver)</li>
-                <li>Euro Stoxx 600: <strong>20%</strong> (mercado europeu)</li>
-                <li>Petróleo WTI: <strong>15%</strong> (commodities exportadas)</li>
-                <li>Minério de Ferro (SGX): <strong>10%</strong> (VALE3 - maior peso do IBOV)</li>
-                <li>USD/BRL: <strong>-25%</strong> (dólar sobe → Ibov tende a cair)</li>
-                <li>DXY: <strong>-10%</strong> (dólar forte globalmente retira fluxo do Brasil)</li>
-                <li>VIX: <strong>-10%</strong> (medo sobe → mercado de risco cai)</li>
+                <li>S&P 500 Futuros: <strong>30%</strong> do score (maior driver externo, corr. 0.55-0.75 com IBOV)</li>
+                <li>Euro Stoxx 600: <strong>10%</strong> (sessão europeia, abre antes do Brasil)</li>
+                <li>Petróleo WTI: <strong>12%</strong> (Petrobras ≈12% do IBOV)</li>
+                <li>Minério de Ferro: <strong>10%</strong> (Vale ≈11% do IBOV)</li>
+                <li>Cobre (HG): <strong>5%</strong> ("Dr. Copper" — proxy de crescimento global)</li>
+                <li>Nasdaq: <strong>3%</strong> (sentimento tech/risco)</li>
+                <li>USD/BRL: <strong>-15%</strong> (BRL forte = inflow estrangeiro = IBOV sobe)</li>
+                <li>VIX: <strong>-8%</strong> (medo = saída de emergentes)</li>
+                <li>Juros EUA 10Y: <strong>-5%</strong> (juros sobem = capital sai do Brasil)</li>
+                <li>DXY: <strong>-5%</strong> (dólar forte global = liquidez mais apertada)</li>
+                <li>Ouro: <strong>-2%</strong> (ouro sobe = risco-off = pressão baixista no IBOV)</li>
             </ul>
 
             <h4>Como o Viés do Dólar é calculado?</h4>
             <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
-                <li>DXY (Índice Dólar): <strong>50%</strong> (força global do dólar)</li>
-                <li>Média das moedas emergentes (MXN, ZAR, TRY): <strong>35%</strong> (proxy para o BRL)</li>
-                <li>Yield EUA 10Y: <strong>5%</strong> (juros altos nos EUA fortalecem o dólar)</li>
-                <li>Diferencial de Juros (BRL10Y vs US10Y): <strong>Fator de Carry Trade</strong> (quando os juros brasileiros sobem mais que os americanos, atrai capital estrangeiro que vende dólar para comprar Real, pressionando o dólar para baixo)</li>
-                <li>S&P 500: <strong>-10%</strong> (risk-on → investidores vendem dólar protetor para comprar ações)</li>
+                <li>DXY (Índice Dólar): <strong>35%</strong> (principal driver global do USD)</li>
+                <li>Cesta de emergentes (MXN 55%, ZAR 35%, TRY 10%): <strong>20%</strong> (proxy de fluxo para EM)</li>
+                <li>Juros EUA 10Y: <strong>+8%</strong> (juros EUA sobem = capital sai do BRL)</li>
+                <li>VIX: <strong>+7%</strong> (medo = fuga de emergentes = BRL fraqueja)</li>
+                <li>S&P 500: <strong>-10%</strong> (risk-on = capital entra no BRL)</li>
+                <li>Petróleo: <strong>-7%</strong> (commodities sobem = saldo comercial melhora = BRL fortalece)</li>
+                <li>Diferencial de Juros (BRL10Y - US10Y): <strong>Fator de Carry Trade</strong> (spread alto = carrego atrativo = BRL forte)</li>
             </ul>
 
             <h4>⚠️ O que é a Correlação Atípica?</h4>
@@ -609,7 +615,7 @@
 
     // ─── Autenticação e Sessão ────────────────────────────────────────
     function logoutUser() {
-        var token = localStorage.getItem('vsstraeder_token');
+        var token = localStorage.getItem('vsstraeder_token') || localStorage.getItem('wstrader_token');
         if (token) {
             fetch('/api/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } });
         }
