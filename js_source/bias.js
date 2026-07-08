@@ -48,6 +48,7 @@ window.biasEngine = {
         // Emergentes (para cálculo do viés do dólar)
         mxn:        { pid: '39',     pcp: 0 },  // USD/MXN (México) — melhor proxy LatAm
         zar:        { pid: '17',     pcp: 0 },  // USD/ZAR (África do Sul) — proxy commodity-EM
+        clp:        { pid: '2108',   pcp: 0 },  // USD/CLP (Chile) — commodity-EM de cobre
         try_:       { pid: '18',     pcp: 0 },  // USD/TRY (Turquia) — peso reduzido (dinâmica própria)
 
         // Juros EUA
@@ -90,8 +91,8 @@ window.biasEngine = {
     calculateIndexBias: function() {
         var p = this.prices;
 
-        // Threshold dinâmico: VIX alto = mercado volátil = exige score maior para confirmar
-        var dynamicThreshold = 0.12 + (Math.abs(p.vix.pcp) > 3 ? 0.08 : 0);
+        // Threshold dinâmico muito mais estreito para garantir alinhamento (evitar falsos neutros)
+        var dynamicThreshold = 0.015 + (Math.abs(p.vix.pcp) > 3 ? 0.01 : 0);
 
         // Yield Curve: spread entre juros de 2 anos e 10 anos
         // Curva invertida (2Y > 10Y → spread negativo) = aperto monetário = pressão em emergentes
@@ -179,11 +180,12 @@ window.biasEngine = {
     calculateDollarBias: function() {
         var p = this.prices;
 
-        // Threshold dinâmico para o dólar
-        var dynamicThreshold = 0.08 + (Math.abs(p.vix.pcp) > 3 ? 0.05 : 0);
+        // Threshold dinâmico para o dólar ajustado para ser super responsivo (evita divergências)
+        var dynamicThreshold = 0.01 + (Math.abs(p.vix.pcp) > 3 ? 0.01 : 0);
 
-        // Cesta de emergentes rebalanceada:
-        var emergentesAvg = (p.mxn.pcp * 0.55) + (p.zar.pcp * 0.35) + (p.try_.pcp * 0.10);
+        // Cesta de emergentes rebalanceada incluindo o CLP (Peso Chileno):
+        // MXN (40%), ZAR (30%), CLP (20%), TRY (10%)
+        var emergentesAvg = (p.mxn.pcp * 0.40) + (p.zar.pcp * 0.30) + (p.clp.pcp * 0.20) + (p.try_.pcp * 0.10);
 
         // Diferencial de Juros (Carry Trade): BRL alto = BRL atraente = USD/BRL cai
         var differential = p.brl10y.pcp - p.us10y.pcp;

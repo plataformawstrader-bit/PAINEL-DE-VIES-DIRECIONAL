@@ -750,6 +750,56 @@ app.post('/api/admin/confirm-payment', authenticateToken, requireAdmin, async (r
     }
 });
 
+// Gerenciamento de PIDs autorizados pelo Admin
+app.get('/api/admin/allowed-pids', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('allowed_pids')
+            .select('*')
+            .order('name', { ascending: true });
+        if (error) throw error;
+        res.json({ success: true, allowedPids: data || [] });
+    } catch (e) {
+        res.status(500).json({ error: 'Erro ao listar PIDs autorizados.' });
+    }
+});
+
+app.post('/api/admin/allowed-pids', authenticateToken, requireAdmin, async (req, res) => {
+    const { pid, name, category } = req.body;
+    if (!pid || !name || !category) {
+        return res.status(400).json({ error: 'PID, nome e categoria são necessários.' });
+    }
+    try {
+        const { data, error } = await supabase
+            .from('allowed_pids')
+            .upsert({
+                pid: pid.trim(),
+                name: name.toUpperCase().trim(),
+                category: category.trim()
+            })
+            .select()
+            .single();
+        if (error) throw error;
+        res.json({ success: true, allowedPid: data });
+    } catch (e) {
+        res.status(500).json({ error: 'Erro ao cadastrar PID autorizado.' });
+    }
+});
+
+app.delete('/api/admin/allowed-pids/:pid', authenticateToken, requireAdmin, async (req, res) => {
+    const { pid } = req.params;
+    try {
+        const { error } = await supabase
+            .from('allowed_pids')
+            .delete()
+            .eq('pid', pid);
+        if (error) throw error;
+        res.json({ success: true, message: 'PID removido com sucesso!' });
+    } catch (e) {
+        res.status(500).json({ error: 'Erro ao remover PID autorizado.' });
+    }
+});
+
 // Histórico de Transações / Pagamentos
 app.get('/api/admin/transactions', authenticateToken, requireAdmin, async (req, res) => {
     try {
@@ -874,6 +924,22 @@ app.post('/api/assets', authenticateToken, async (req, res) => {
     }
 
     try {
+        // Verificar se o PID está na tabela allowed_pids
+        const { data: allowed, error: allowedError } = await supabase
+            .from('allowed_pids')
+            .select('*')
+            .eq('pid', pid.trim())
+            .maybeSingle();
+
+        if (allowedError) {
+            console.error('Erro ao verificar allowed_pids (talvez a tabela não exista ainda):', allowedError);
+        } else if (!allowed) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Ativo indisponível. Entre em contato com o administrador para obter ajuda.' 
+            });
+        }
+
         const { data: newAsset, error } = await supabase
             .from('user_assets')
             .insert({

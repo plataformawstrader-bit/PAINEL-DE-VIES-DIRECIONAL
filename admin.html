@@ -303,6 +303,7 @@
         <button class="nav-tab" id="tab-btn-users" onclick="switchTab('users')">👥 Usuários</button>
         <button class="nav-tab" id="tab-btn-transactions" onclick="switchTab('transactions')">💳 Transações</button>
         <button class="nav-tab" id="tab-btn-projections" onclick="switchTab('projections')">📈 Projeções</button>
+        <button class="nav-tab" id="tab-btn-pids" onclick="switchTab('pids')">🔑 PIDs Autorizados</button>
     </div>
 
     <!-- ────────────────────────────────────────── -->
@@ -460,6 +461,68 @@
                         <tr class="loading-row"><td colspan="4">Carregando...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ────────────────────────────────────────── -->
+    <!-- TAB: PIDs Autorizados                      -->
+    <!-- ────────────────────────────────────────── -->
+    <section class="tab-section" id="tab-pids">
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+            <!-- Form Card -->
+            <div class="section-card">
+                <div class="section-header">
+                    <h3>➕ Autorizar Novo Ativo (PID)</h3>
+                </div>
+                <form id="form-add-pid" onsubmit="submitNewPid(event)" style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; margin-bottom: 0.4rem; color: var(--text-secondary);">Pair ID (PID) da Investing</label>
+                        <input type="text" id="pid-val" placeholder="Ex: 2108" required style="width: 100%; padding: 0.6rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main);">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; margin-bottom: 0.4rem; color: var(--text-secondary);">Nome/Sigla do Ativo</label>
+                        <input type="text" id="pid-name" placeholder="Ex: USD/CLP" required style="width: 100%; padding: 0.6rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main);">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.8rem; margin-bottom: 0.4rem; color: var(--text-secondary);">Categoria</label>
+                        <select id="pid-category" required style="width: 100%; padding: 0.6rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main);">
+                            <option value="EUA">EUA</option>
+                            <option value="Brasil">Brasil</option>
+                            <option value="Commodities">Commodities</option>
+                            <option value="Câmbio">Câmbio</option>
+                            <option value="Juros EUA">Juros EUA</option>
+                            <option value="Emergentes">Emergentes</option>
+                            <option value="Criptomoedas">Criptomoedas</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-confirm" style="width: 100%; padding: 0.8rem; font-weight: bold; background: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer;">
+                        Autorizar Ativo
+                    </button>
+                </form>
+            </div>
+
+            <!-- List Card -->
+            <div class="section-card">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>🔑 Lista de PIDs Autorizados</h3>
+                    <input type="text" id="pid-search" placeholder="Buscar PID ou nome..." oninput="filterPids()" style="padding: 0.5rem 1rem; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); font-size: 0.8rem;">
+                </div>
+                <div style="overflow-y: auto; max-height: 60vh; margin-top: 1rem;">
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>Nome</th>
+                                <th>Categoria</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pids-tbody">
+                            <tr class="loading-row"><td colspan="4">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </section>
@@ -748,6 +811,88 @@
         `).join('');
     }
 
+    // ─── Carregar e Gerenciar PIDs Autorizados ───────────────────────────
+    let allAllowedPids = [];
+
+    async function loadAllowedPids() {
+        try {
+            const resp = await fetch('/api/admin/allowed-pids', { headers: HEADERS });
+            const data = await resp.json();
+            allAllowedPids = data.allowedPids || [];
+            renderAllowedPids(allAllowedPids);
+        } catch (e) {
+            document.getElementById('pids-tbody').innerHTML =
+                '<tr class="loading-row"><td colspan="4">Erro ao carregar PIDs autorizados.</td></tr>';
+        }
+    }
+
+    function renderAllowedPids(list) {
+        const tbody = document.getElementById('pids-tbody');
+        if (!list || list.length === 0) {
+            tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Sem PIDs cadastrados.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = list.map(p => `
+            <tr>
+                <td><code>${escapeHtml(p.pid)}</code></td>
+                <td style="font-weight:600;">${escapeHtml(p.name)}</td>
+                <td><span class="status-badge status-active">${escapeHtml(p.category)}</span></td>
+                <td>
+                    <button class="action-btn btn-block" style="background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.4); color:#ef4444;" onclick="deleteAllowedPid('${p.pid}')">❌ Remover</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    window.submitNewPid = async function(e) {
+        e.preventDefault();
+        const pid = document.getElementById('pid-val').value.trim();
+        const name = document.getElementById('pid-name').value.trim();
+        const category = document.getElementById('pid-category').value;
+
+        if (!pid || !name || !category) return;
+
+        try {
+            const resp = await fetch('/api/admin/allowed-pids', {
+                method: 'POST',
+                headers: HEADERS,
+                body: JSON.stringify({ pid, name, category })
+            });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao salvar.');
+            document.getElementById('form-add-pid').reset();
+            alert('Ativo autorizado com sucesso!');
+            await loadAllowedPids();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    window.deleteAllowedPid = async function(pid) {
+        if (!confirm(`Deseja remover a autorização para o PID ${pid}?`)) return;
+        try {
+            const resp = await fetch(`/api/admin/allowed-pids/${pid}`, {
+                method: 'DELETE',
+                headers: HEADERS
+            });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao remover.');
+            await loadAllowedPids();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    window.filterPids = function() {
+        const q = document.getElementById('pid-search').value.toLowerCase();
+        const filtered = allAllowedPids.filter(p =>
+            (p.name || '').toLowerCase().includes(q) ||
+            (p.pid || '').toLowerCase().includes(q) ||
+            (p.category || '').toLowerCase().includes(q)
+        );
+        renderAllowedPids(filtered);
+    }
+
     // ─── Utilitários ─────────────────────────────────────────────────────
     function escapeHtml(str) {
         return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -759,6 +904,7 @@
         await loadUsers();
         await loadTransactions();
         await loadRenewals();
+        await loadAllowedPids();
     })();
 
     // Bloqueios Anti-Plágio

@@ -7,6 +7,7 @@
     <meta name="description" content="WS PAINEL DE MONITORAMENTO  — 10 categorias de ativos em tempo real com motor de viés para Índice e Dólar.">
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <!-- ══════════ PROTEÇÃO DE ACESSO JWT ══════════ -->
     <script>
@@ -219,6 +220,14 @@
                 </tr></thead>
                 <tbody id="curva-table"></tbody>
             </table>
+            <!-- Gráfico de Linhas Dinâmico — Curva de Juros EUA -->
+            <div style="padding: 0.75rem 1rem 1rem; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 0.5rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                    <span style="font-size:0.72rem; color:var(--text-secondary); font-weight:600;">CURVA DE JUROS — ÚLTIMAS 60 ATUALIZAÇÕES</span>
+                    <span id="yield-spread-badge" style="font-size:0.7rem; padding:2px 8px; border-radius:4px; font-weight:700; background:rgba(100,116,139,0.2); color:#94a3b8;">Spread: —</span>
+                </div>
+                <canvas id="yield-curve-chart" height="90"></canvas>
+            </div>
         </div>
 
         <!-- 3. Commodities -->
@@ -626,6 +635,86 @@
         var saved = localStorage.getItem('ws_theme_v2') || 'blue';
         setTheme(saved);
     })();
+
+    // ── Gráfico de Curva de Juros EUA ──────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('yield-curve-chart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        window.yieldCurveChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'US 2Y',
+                        data: [],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245,158,11,0.08)',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: false
+                    },
+                    {
+                        label: 'US 10Y',
+                        data: [],
+                        borderColor: '#00f0ff',
+                        backgroundColor: 'rgba(0,240,255,0.08)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: false
+                    },
+                    {
+                        label: 'US 30Y',
+                        data: [],
+                        borderColor: '#00ff88',
+                        backgroundColor: 'rgba(0,255,136,0.08)',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#64748b', boxWidth: 12, padding: 10, font: { size: 10 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.dataset.label + ': ' + ctx.raw.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: false,
+                        grid: { display: false }
+                    },
+                    y: {
+                        display: true,
+                        position: 'right',
+                        grid: { color: 'rgba(255,255,255,0.04)' },
+                        ticks: {
+                            color: '#64748b',
+                            font: { size: 9 },
+                            callback: function(v) { return v.toFixed(2) + '%'; }
+                        }
+                    }
+                }
+            }
+        });
+    });
 
     // Gaveta do formulário
     function toggleForm() {

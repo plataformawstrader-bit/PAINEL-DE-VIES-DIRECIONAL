@@ -127,6 +127,42 @@ function new_conn() {
                 document.title = 'INDFUT ' + pid_obj.pcp + ' | ' + pid_obj.last;
             }
 
+            // 7. Gráfico dinâmico da Curva de Juros EUA
+            if (pid === '23701' || pid === '23705' || pid === '23706') {
+                if (window.yieldCurveChart) {
+                    var pVal = parseFloat((pid_obj.last || '0').replace(/\./g,'').replace(',','.'));
+                    if (!isNaN(pVal) && pVal > 0) {
+                        var now = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+                        var ds = window.yieldCurveChart.data.datasets;
+                        var labels = window.yieldCurveChart.data.labels;
+
+                        // Mapeia PID para dataset index
+                        var dsIdx = pid === '23701' ? 0 : pid === '23705' ? 1 : 2;
+                        ds[dsIdx].data.push(pVal);
+                        if (ds[dsIdx].data.length > 60) ds[dsIdx].data.shift();
+
+                        // Sincroniza labels com o dataset maior
+                        var maxLen = Math.max(ds[0].data.length, ds[1].data.length, ds[2].data.length);
+                        if (labels.length < maxLen) labels.push(now);
+                        if (labels.length > 60) labels.shift();
+
+                        window.yieldCurveChart.update('none');
+
+                        // Atualiza badge de spread (10Y - 2Y)
+                        var v2y  = ds[0].data[ds[0].data.length - 1] || 0;
+                        var v10y = ds[1].data[ds[1].data.length - 1] || 0;
+                        var spread = v10y - v2y;
+                        var badge = document.getElementById('yield-spread-badge');
+                        if (badge) {
+                            var inv = spread < 0;
+                            badge.textContent = 'Spread 10Y-2Y: ' + (spread >= 0 ? '+' : '') + spread.toFixed(2) + 'pp';
+                            badge.style.background = inv ? 'rgba(239,68,68,0.2)' : 'rgba(0,255,136,0.15)';
+                            badge.style.color = inv ? '#ef4444' : '#00ff88';
+                        }
+                    }
+                }
+            }
+
         } catch(err) {
             console.error('Erro ao processar tick:', err);
         }
