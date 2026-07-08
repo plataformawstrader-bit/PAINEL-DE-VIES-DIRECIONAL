@@ -271,7 +271,7 @@ app.post('/api/register', authLimiter, async (req, res) => {
         // Disparar e-mail de boas-vindas
         if (trialDays > 0) {
             transporter.sendMail({
-                from: `"WSSTRAEDER" <${process.env.EMAIL_USER}>`,
+                from: `"WS TRADER" <${process.env.EMAIL_USER}>`,
                 to: email,
                 subject: 'Bem-vindo ao VSSTRAEDER! 🚀',
                 html: `<h1>Olá ${name}!</h1><p>Seu acesso de <strong>7 dias GRATUITOS</strong> foi ativado com sucesso.</p><p>Código de Afiliado: <strong>${affiliateCode}</strong> (Ganhe 20% indicando amigos).</p>`
