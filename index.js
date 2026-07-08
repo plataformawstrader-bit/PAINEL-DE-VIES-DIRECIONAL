@@ -750,6 +750,22 @@ app.post('/api/admin/confirm-payment', authenticateToken, requireAdmin, async (r
     }
 });
 
+// Histórico de Transações / Pagamentos
+app.get('/api/admin/transactions', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        const { data: transactions, error } = await supabase
+            .from('payments')
+            .select('*, users(name, email)')
+            .order('created_at', { ascending: false })
+            .limit(200);
+
+        if (error) throw error;
+        res.json({ success: true, transactions: transactions || [] });
+    } catch (e) {
+        res.status(500).json({ error: 'Erro ao obter transações.' });
+    }
+});
+
 // Dashboard Financeiro do Administrador (MRR, ARR e Projeções)
 app.get('/api/admin/financial-stats', authenticateToken, requireAdmin, async (req, res) => {
     const today = new Date();

@@ -290,8 +290,9 @@
             </div>
             <span class="admin-badge">Painel Admin</span>
         </div>
-        <div style="display:flex; align-items:center; gap:1rem;">
+        <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
             <span id="admin-name" style="font-size:0.8rem; color:var(--text-secondary);"></span>
+            <a href="index.html" style="padding:0.5rem 1rem; border:1px solid var(--accent); background:rgba(0,255,136,0.08); color:var(--accent); border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; text-decoration:none;">← Painel</a>
             <button class="btn-logout" onclick="logout()">Sair</button>
         </div>
     </div>
@@ -613,7 +614,8 @@
     async function loadUsers() {
         try {
             const resp = await fetch('/api/admin/users', { headers: HEADERS });
-            allUsers = await resp.json();
+            const data = await resp.json();
+            allUsers = data.users || [];
             renderUsers(allUsers);
         } catch (e) {
             document.getElementById('users-tbody').innerHTML =
@@ -650,7 +652,8 @@
 
     function filterUsers() {
         const q = document.getElementById('user-search').value.toLowerCase();
-        const filtered = allUsers.filter(u =>
+        const list = Array.isArray(allUsers) ? allUsers : [];
+        const filtered = list.filter(u =>
             (u.name || '').toLowerCase().includes(q) ||
             (u.email || '').toLowerCase().includes(q)
         );
@@ -661,47 +664,53 @@
         const action = block ? 'bloquear' : 'desbloquear';
         if (!confirm(`Deseja ${action} este usuário?`)) return;
         try {
-            await fetch(`/api/admin/users/${userId}/block`, {
-                method: 'PATCH',
+            const endpoint = block ? '/api/admin/block-user' : '/api/admin/unblock-user';
+            const resp = await fetch(endpoint, {
+                method: 'POST',
                 headers: HEADERS,
-                body: JSON.stringify({ block })
+                body: JSON.stringify({ userId })
             });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error);
             await loadUsers();
-        } catch (e) { alert('Erro ao executar ação.'); }
+        } catch (e) { alert('Erro ao executar ação: ' + e.message); }
     }
 
     async function extendAccess(userId) {
         if (!confirm('Adicionar 30 dias de acesso a este usuário?')) return;
         try {
-            await fetch(`/api/admin/users/${userId}/extend`, {
-                method: 'PATCH',
+            const resp = await fetch('/api/admin/extend-access', {
+                method: 'POST',
                 headers: HEADERS,
-                body: JSON.stringify({ days: 30 })
+                body: JSON.stringify({ userId, days: 30 })
             });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error);
             await loadUsers();
-        } catch (e) { alert('Erro ao estender acesso.'); }
+        } catch (e) { alert('Erro ao estender acesso: ' + e.message); }
     }
 
     // ─── Carregar Transações ─────────────────────────────────────────────
     async function loadTransactions() {
         try {
             const resp = await fetch('/api/admin/transactions', { headers: HEADERS });
-            const list = await resp.json();
+            const data = await resp.json();
+            const list = data.transactions || data || [];
             document.getElementById('tx-count').textContent = list.length + ' registros';
 
             const tbody = document.getElementById('tx-tbody');
             if (!list || list.length === 0) {
-                tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Sem transações registradas.</td></tr>';
+                tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Sem transa\u00e7\u00f5es registradas.</td></tr>';
                 return;
             }
             tbody.innerHTML = list.map(t => `
                 <tr>
-                    <td>${fmtDate(t.created_at)}</td>
+                    <td>${fmtDate(t.paid_at || t.created_at)}</td>
                     <td>
-                        <div style="font-weight:600;">${escapeHtml(t.user_name || '–')}</div>
-                        <div style="font-size:0.72rem; color:var(--text-secondary);">${escapeHtml(t.user_email || '')}</div>
+                        <div style="font-weight:600;">${escapeHtml(t.user_name || t.users?.name || '–')}</div>
+                        <div style="font-size:0.72rem; color:var(--text-secondary);">${escapeHtml(t.user_email || t.users?.email || '')}</div>
                     </td>
-                    <td>${t.plan_type === 'yearly' ? '📅 Anual' : '📆 Mensal'}</td>
+                    <td>${t.plan_type === 'annual' ? '📅 Anual' : '📆 Mensal'}</td>
                     <td class="amount-positive">${brl(t.amount)}</td>
                     <td>${t.payment_method || '–'}</td>
                     <td style="font-size:0.72rem; color:var(--text-secondary);">${t.source || 'webhook'}</td>
@@ -709,7 +718,7 @@
             `).join('');
         } catch (e) {
             document.getElementById('tx-tbody').innerHTML =
-                '<tr class="loading-row"><td colspan="6">Erro ao carregar transações.</td></tr>';
+                '<tr class="loading-row"><td colspan="6">Erro ao carregar transa\u00e7\u00f5es.</td></tr>';
         }
     }
 

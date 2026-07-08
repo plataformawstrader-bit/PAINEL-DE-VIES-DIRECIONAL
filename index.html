@@ -95,6 +95,9 @@
             <!-- Link Admin (visível apenas para admins) -->
             <a id="admin-link" href="admin.html" style="display:none; font-size:0.75rem; font-weight:700; color:var(--accent); text-decoration:none; border:1px solid var(--border-hover); border-radius:8px; padding:0.4rem 0.8rem;">⚙ Admin</a>
 
+            <!-- Nome do usuário logado -->
+            <span id="user-display-name" style="font-size:0.75rem; font-weight:600; color:var(--text-secondary); border:1px solid var(--border); border-radius:8px; padding:0.4rem 0.8rem;"></span>
+
             <!-- Botão Sair -->
             <button onclick="logoutUser()" title="Sair" style="background:rgba(220,38,38,0.08); border:1px solid rgba(220,38,38,0.3); color:#dc2626; border-radius:8px; padding:0.4rem 0.8rem; font-size:0.75rem; font-weight:700; cursor:pointer; font-family:var(--font-body);">
                 Sair
@@ -615,10 +618,17 @@
         window.location.replace('login.html');
     }
 
-    // Exibe link de admin se o usuário for admin
+    // Exibe nome do usuário e link de admin se for admin
     (function() {
         try {
             var user = JSON.parse(localStorage.getItem('vsstraeder_user') || '{}');
+            // Nome do usuário
+            var nameEl = document.getElementById('user-display-name');
+            if (nameEl && user.name) {
+                var firstName = user.name.split(' ')[0];
+                nameEl.textContent = '👤 ' + firstName;
+            }
+            // Botão Admin
             if (user.isAdmin === true) {
                 var adminLink = document.getElementById('admin-link');
                 if (adminLink) adminLink.style.display = 'inline-flex';
