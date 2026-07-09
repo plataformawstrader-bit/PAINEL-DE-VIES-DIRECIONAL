@@ -19,6 +19,9 @@ const supabase = createClient(
     process.env.SUPABASE_KEY || 'placeholder'
 );
 
+// ========== PRICE CACHE SYSTEM ==========
+const priceCache = {};
+
 // ========== CONFIGURAÇÃO DE EMAIL ==========
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
@@ -976,6 +979,24 @@ app.delete('/api/assets/:id', authenticateToken, async (req, res) => {
         console.error('Erro ao deletar ativo:', e);
         res.status(500).json({ error: 'Erro ao deletar ativo do banco de dados.' });
     }
+});
+
+// ========== ROTAS DE CACHE DE PREÇOS (INSTANT-LOAD SYSTEM) ==========
+app.get('/api/prices', async (req, res) => {
+    res.json({ success: true, prices: priceCache });
+});
+
+app.post('/api/prices/tick', express.json(), async (req, res) => {
+    const { pid, last, pcp } = req.body;
+    if (!pid || last === undefined || pcp === undefined) {
+        return res.status(400).json({ error: 'PID, last e pcp são obrigatórios.' });
+    }
+    priceCache[pid] = {
+        last: last,
+        pcp: pcp,
+        timestamp: Date.now()
+    };
+    res.json({ success: true });
 });
 
 // ========== INICIAR SERVIDOR ==========

@@ -68,6 +68,11 @@ function new_conn() {
             var pid_obj = JSON.parse(result[1]);
             var pid = pid_obj.pid;
 
+            // Envia o tick para atualizar o cache do servidor (throttled)
+            if (typeof window.sendTickToServer === 'function') {
+                window.sendTickToServer(pid, pid_obj.last, pid_obj.pcp);
+            }
+
             // 1. Alimenta o Bias Engine
             if (window.biasEngine && window.biasEngine.monitoredPids.has(pid)) {
                 window.biasEngine.updatePrice(pid, pid_obj.pcp, pid_obj.last);
@@ -357,7 +362,104 @@ window.showToast = function(message, type) {
     }, 5000);
 };
 
+// ─── Cache de Preços do Servidor ───────────────────────────────
+var lastSentTimes = {};
+
+window.sendTickToServer = function(pid, last, pcp) {
+    var now = Date.now();
+    if (lastSentTimes[pid] && (now - lastSentTimes[pid] < 15000)) {
+        return; // throttle 15 segundos
+    }
+    lastSentTimes[pid] = now;
+
+    fetch('/api/prices/tick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pid: pid, last: last, pcp: pcp })
+    }).catch(function() {
+        // ignora erros silenciosamente
+    });
+};
+
+window.loadInitialPrices = async function() {
+    try {
+        const resp = await fetch('/api/prices');
+        const data = await resp.json();
+        if (data.success && data.prices) {
+            const prices = data.prices;
+            Object.keys(prices).forEach(pid => {
+                const priceInfo = prices[pid];
+                
+                // 1. Atualiza o DOM (tabela)
+                const lastEl = document.querySelector('.pid-' + pid + '-last');
+                const pcpEl  = document.querySelector('.pid-' + pid + '-pcp');
+                if (lastEl) lastEl.textContent = priceInfo.last;
+                if (pcpEl) {
+                    pcpEl.textContent = priceInfo.pcp;
+                    var pcpFloat = parseFloat(priceInfo.pcp.replace('%','').replace(',','.'));
+                    pcpEl.classList.remove('color-up','color-down','color-neutral');
+                    pcpEl.classList.add(pcpFloat > 0 ? 'color-up' : pcpFloat < 0 ? 'color-down' : 'color-neutral');
+                }
+                
+                // 2. Alimenta o Bias Engine
+                if (window.biasEngine && window.biasEngine.monitoredPids.has(pid)) {
+                    window.biasEngine.updatePrice(pid, priceInfo.pcp, priceInfo.last);
+                }
+            });
+            
+            // Recalcula o viés inicial com os preços do cache
+            if (window.biasEngine) {
+                window.biasEngine.calculateBias();
+            }
+            
+            // 3. Preenche o gráfico da curva de juros com os valores do cache
+            if (window.yieldCurveChart) {
+                const labels = window.yieldCurveChart.data.labels;
+                const ds = window.yieldCurveChart.data.datasets;
+                const now = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+                
+                let loadedAny = false;
+                // US 2Y (23701), US 10Y (23705), US 30Y (23706)
+                ['23701', '23705', '23706'].forEach((pid, dsIdx) => {
+                    if (prices[pid]) {
+                        const val = parseFloat(prices[pid].last.replace(/\./g,'').replace(',','.'));
+                        if (!isNaN(val) && val > 0) {
+                            ds[dsIdx].data.push(val);
+                            loadedAny = true;
+                        }
+                    }
+                });
+                
+                if (loadedAny) {
+                    labels.push(now);
+                    window.yieldCurveChart.update();
+                    
+                    // Atualiza badge de spread (10Y - 2Y)
+                    const v2y  = ds[0].data[0] || 0;
+                    const v10y = ds[1].data[0] || 0;
+                    const spread = v10y - v2y;
+                    const badge = document.getElementById('yield-spread-badge');
+                    if (badge && v2y > 0 && v10y > 0) {
+                        const inv = spread < 0;
+                        badge.textContent = 'Spread 10Y-2Y: ' + (spread >= 0 ? '+' : '') + spread.toFixed(2) + 'pp';
+                        badge.style.background = inv ? 'rgba(239,68,68,0.2)' : 'rgba(0,255,136,0.15)';
+                        badge.style.color = inv ? '#ef4444' : '#00ff88';
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao carregar preços iniciais do cache:', e);
+    }
+};
+
 // ─── Inicia a conexão ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
-    new_conn();
+    if (typeof window.loadInitialPrices === 'function') {
+        window.loadInitialPrices().then(function() {
+            new_conn();
+        });
+    } else {
+        new_conn();
+    }
 });

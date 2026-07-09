@@ -371,6 +371,7 @@
             <li><a href="#" onclick="openModal(event, 'modal')">Sobre & Como usar</a></li>
             <li><a href="#" onclick="openModal(event, 'modal-macro')">📚 Guia Macro & Micro</a></li>
             <li><a href="#" onclick="openModal(event, 'modal-score')">📐 Score, Gap & Confiança</a></li>
+            <li><a href="#" onclick="openModal(event, 'modal-juros')">📈 Entenda os Juros</a></li>
             <li><a href="#" onclick="openModal(event, 'modal-pids')">🔑 Tabela de PIDs</a></li>
         </ul>
     </footer>
@@ -607,6 +608,39 @@
                 <li>Se o viés é de <strong>Alta</strong>, o sistema soma os pesos dos ativos que estão em território de alta. Se o viés é de <strong>Baixa</strong>, soma os pesos dos ativos em baixa.</li>
                 <li>A confiança exibida é a porcentagem da força total de correlação alinhada com o viés.</li>
                 <li><strong>Exemplo prático:</strong> S&P 500 (peso 28%) e Petróleo (peso 12%) juntos representam 40% da confiança. Se apenas eles concordarem com o movimento, a confiança será de pelo menos 40%, enquanto ativos menores como Ouro (peso 2%) têm impacto muito menor sobre a barra de confiança.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+<!-- ══════════ MODAL ENTENDA OS JUROS ══════════ -->
+<div id="modal-juros" class="modal-overlay" onclick="closeModal(event, 'modal-juros')">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-head">
+            <span>📈 Guia: Curva de Juros e Gráfico em Tempo Real</span>
+            <button onclick="closeModal(event, 'modal-juros')">&times;</button>
+        </div>
+        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+            <h4>Como funciona a Curva de Juros EUA no Painel?</h4>
+            <p>Os títulos de tesouro americano (Treasury Yields) são a base dos juros mundiais. O painel monitora três vencimentos críticos em tempo real:</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>US 2Y (Juro de 2 Anos):</strong> Muito sensível à política monetária imediata do Federal Reserve (Fed).</li>
+                <li><strong>US 10Y (Juro de 10 Anos):</strong> Referência global de custo de capital e fluxo de investimentos de longo prazo.</li>
+                <li><strong>US 30Y (Juro de 30 Anos):</strong> Reflete o sentimento de crescimento econômico e inflação a longo prazo.</li>
+            </ul>
+
+            <h4 style="color:var(--accent);">O Spread 10Y-2Y (Curva Invertida)</h4>
+            <p>Normalmente, juros de prazos maiores devem pagar mais que prazos menores (curva normal). Quando o juro curto de 2 anos fica <strong>maior</strong> que o de 10 anos, dizemos que a <strong>curva de juros está invertida</strong>.</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>Curva Invertida (Spread Negativo):</strong> Um sinal clássico de recessão iminente nos EUA. Os mercados de risco (Bolsas e Emergentes) costumam sofrer forte pressão baixista.</li>
+                <li><strong>Badge de Spread:</strong> Fica verde em condições normais e <strong>vermelho com aviso de alerta</strong> se a curva estiver invertida.</li>
+            </ul>
+
+            <h4 style="color:var(--accent);">Como o Gráfico se Desenha?</h4>
+            <p>O gráfico é uma <strong>linha do tempo dinâmica de ticks ao vivo</strong>:</p>
+            <ul style="margin-left:1.2rem; margin-bottom:0.75rem;">
+                <li><strong>Linhas por Ativo:</strong> Exibe o US 2Y (Amarelo), US 10Y (Ciano) e US 30Y (Verde). Cada linha representa o valor exato da taxa de juros daquele ativo específico se movendo.</li>
+                <li><strong>Acúmulo de Pontos:</strong> Quando você abre a página, o gráfico inicia a gravação. Conforme o WebSocket da Investing.com envia novas atualizações (ticks), os pontos vão sendo plotados da esquerda para a direita, acumulando até 60 pontos.</li>
+                <li><strong>Se as linhas parecem retas ou demoram a aparecer:</strong> Isso é normal! Significa que o mercado de juros está com baixa volatilidade no momento e os ticks estão demorando a atualizar. A linha só se move ou faz curvas quando o valor de tela (Último) do juro sofre alguma alteração.</li>
             </ul>
         </div>
     </div>
