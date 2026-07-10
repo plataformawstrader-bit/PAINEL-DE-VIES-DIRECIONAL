@@ -531,8 +531,8 @@
 
 <script>
     // ─── Autenticação Admin ──────────────────────────────────────────────
-    const token = localStorage.getItem('WS TRADER_token');
-    const user  = JSON.parse(localStorage.getItem('WS TRADER_user') || '{}');
+    const token = localStorage.getItem('vsstraeder_token') || localStorage.getItem('wstrader_token');
+    const user  = JSON.parse(localStorage.getItem('vsstraeder_user') || localStorage.getItem('wstrader_user') || '{}');
 
     if (!token) { window.location.href = 'login.html'; }
     if (user.isAdmin !== true) { window.location.href = 'index.html'; }
@@ -544,7 +544,10 @@
     const HEADERS = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
     function logout() {
-        localStorage.clear();
+        localStorage.removeItem('vsstraeder_token');
+        localStorage.removeItem('vsstraeder_user');
+        localStorage.removeItem('wstrader_token');
+        localStorage.removeItem('wstrader_user');
         window.location.href = 'login.html';
     }
 
@@ -709,6 +712,7 @@
                     }
                     <button class="action-btn btn-extend" onclick="extendAccess('${u.id}', 30)">+30d</button>
                     <button class="action-btn btn-extend" style="background:rgba(0,240,255,0.15); border-color:rgba(0,240,255,0.4); color:#00f0ff;" onclick="extendAccess('${u.id}', 365)">+1 Ano</button>
+                    <button class="action-btn btn-block" style="background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.4); color:#ef4444;" onclick="expireAccess('${u.id}')">⏳ Expirar</button>
                 </td>
             </tr>
         `).join('');
@@ -754,7 +758,21 @@
             if (!data.success) throw new Error(data.error);
             await loadUsers();
         } catch (e) { alert('Erro ao estender acesso: ' + e.message); }
-    }
+     }
+
+     async function expireAccess(userId) {
+        if (!confirm('Tem certeza que deseja expirar/cancelar o plano deste usuário imediatamente?')) return;
+        try {
+            const resp = await fetch('/api/admin/expire-access', {
+                method: 'POST',
+                headers: HEADERS,
+                body: JSON.stringify({ userId })
+            });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error);
+            await loadUsers();
+        } catch (e) { alert('Erro ao expirar acesso: ' + e.message); }
+     }
 
     // ─── Carregar Transações ─────────────────────────────────────────────
     async function loadTransactions() {

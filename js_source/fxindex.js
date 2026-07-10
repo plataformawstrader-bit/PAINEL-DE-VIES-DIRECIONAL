@@ -135,21 +135,30 @@ function new_conn() {
             // 7. Gráfico dinâmico da Curva de Juros EUA
             if (pid === '23701' || pid === '23705' || pid === '23706') {
                 if (window.yieldCurveChart) {
-                    var pVal = parseFloat((pid_obj.last || '0').replace(/\./g,'').replace(',','.'));
+                    // Normaliza valor: remove pontos de milhar, troca vírgula por ponto decimal
+                    var rawVal = String(pid_obj.last || '0').trim();
+                    var pVal = parseFloat(rawVal.replace(/\./g,'').replace(',','.'));
                     if (!isNaN(pVal) && pVal > 0) {
                         var now = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
                         var ds = window.yieldCurveChart.data.datasets;
                         var labels = window.yieldCurveChart.data.labels;
+                        var CHART_MAX_POINTS = 60;
 
                         // Mapeia PID para dataset index
                         var dsIdx = pid === '23701' ? 0 : pid === '23705' ? 1 : 2;
+                        
+                        // Se o dataset já foi pré-populado, substitui o ÚLTIMO ponto em vez de push
+                        // para preservar o janelamento de 60 pontos
+                        if (ds[dsIdx].data.length >= CHART_MAX_POINTS) {
+                            ds[dsIdx].data.shift();
+                        }
                         ds[dsIdx].data.push(pVal);
-                        if (ds[dsIdx].data.length > 60) ds[dsIdx].data.shift();
 
-                        // Sincroniza labels com o dataset maior
-                        var maxLen = Math.max(ds[0].data.length, ds[1].data.length, ds[2].data.length);
-                        if (labels.length < maxLen) labels.push(now);
-                        if (labels.length > 60) labels.shift();
+                        // Mantém os labels alinhados: adiciona 1 label por tick do 10Y apenas
+                        if (pid === '23705') {
+                            labels.push(now);
+                            if (labels.length > CHART_MAX_POINTS) labels.shift();
+                        }
 
                         window.yieldCurveChart.update('none');
 
@@ -158,7 +167,7 @@ function new_conn() {
                         var v10y = ds[1].data[ds[1].data.length - 1] || 0;
                         var spread = v10y - v2y;
                         var badge = document.getElementById('yield-spread-badge');
-                        if (badge) {
+                        if (badge && v2y > 0 && v10y > 0) {
                             var inv = spread < 0;
                             badge.textContent = 'Spread 10Y-2Y: ' + (spread >= 0 ? '+' : '') + spread.toFixed(2) + 'pp';
                             badge.style.background = inv ? 'rgba(239,68,68,0.2)' : 'rgba(0,255,136,0.15)';
@@ -413,30 +422,36 @@ window.loadInitialPrices = async function() {
             }
             
             // 3. Preenche o gráfico da curva de juros com os valores do cache
+            // Pré-popula 60 pontos idênticos para que a linha reta apareça instantaneamente
             if (window.yieldCurveChart) {
-                const labels = window.yieldCurveChart.data.labels;
+                const CHART_MAX_POINTS = 60;
                 const ds = window.yieldCurveChart.data.datasets;
+                const labels = window.yieldCurveChart.data.labels;
                 const now = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
                 
-                let loadedAny = false;
                 // US 2Y (23701), US 10Y (23705), US 30Y (23706)
-                ['23701', '23705', '23706'].forEach((pid, dsIdx) => {
-                    if (prices[pid]) {
-                        const val = parseFloat(prices[pid].last.replace(/\./g,'').replace(',','.'));
+                let anyLoaded = false;
+                ['23701', '23705', '23706'].forEach((yieldPid, dsIdx) => {
+                    if (prices[yieldPid] && prices[yieldPid].last) {
+                        // Normaliza: remove pontos de milhar, troca vírgula por ponto
+                        const rawLast = String(prices[yieldPid].last).trim();
+                        const val = parseFloat(rawLast.replace(/\./g,'').replace(',','.'));
                         if (!isNaN(val) && val > 0) {
-                            ds[dsIdx].data.push(val);
-                            loadedAny = true;
+                            // Preenche TODOS os 60 slots com o mesmo valor para renderizar a linha
+                            ds[dsIdx].data = Array(CHART_MAX_POINTS).fill(val);
+                            anyLoaded = true;
                         }
                     }
                 });
                 
-                if (loadedAny) {
-                    labels.push(now);
-                    window.yieldCurveChart.update();
+                if (anyLoaded) {
+                    // Cria labels fake (60 ticks) para alinhar com os pontos
+                    for (let i = 0; i < CHART_MAX_POINTS; i++) labels.push(i === CHART_MAX_POINTS - 1 ? now : '');
+                    window.yieldCurveChart.update('none');
                     
-                    // Atualiza badge de spread (10Y - 2Y)
-                    const v2y  = ds[0].data[0] || 0;
-                    const v10y = ds[1].data[0] || 0;
+                    // Atualiza badge de spread (10Y - 2Y) usando o último ponto de cada dataset
+                    const v2y  = ds[0].data[ds[0].data.length - 1] || 0;
+                    const v10y = ds[1].data[ds[1].data.length - 1] || 0;
                     const spread = v10y - v2y;
                     const badge = document.getElementById('yield-spread-badge');
                     if (badge && v2y > 0 && v10y > 0) {

@@ -20,7 +20,16 @@ const supabase = createClient(
 );
 
 // ========== PRICE CACHE SYSTEM ==========
-const priceCache = {};
+const priceCache = {
+    // Juros EUA (semente inicial realista para evitar começar zerado)
+    '23701': { last: '4,172', pcp: '0,00%', timestamp: Date.now() }, // US2Y
+    '23705': { last: '4,556', pcp: '0,00%', timestamp: Date.now() }, // US10Y
+    '23706': { last: '5,067', pcp: '0,00%', timestamp: Date.now() }, // US30Y
+    // Dólar e Índices globais
+    '8827':  { last: '104,50', pcp: '0,00%', timestamp: Date.now() }, // DXY
+    '44336': { last: '15,00',  pcp: '0,00%', timestamp: Date.now() }, // VIX
+    '8839':  { last: '5.200,00', pcp: '0,00%', timestamp: Date.now() } // S&P 500
+};
 
 // ========== CONFIGURAÇÃO DE EMAIL ==========
 const transporter = nodemailer.createTransport({
@@ -706,6 +715,28 @@ app.post('/api/admin/extend-access', authenticateToken, requireAdmin, async (req
         res.json({ success: true, message: `Acesso estendido até ${baseDate.toLocaleDateString('pt-BR')}` });
     } catch (e) {
         res.status(500).json({ error: 'Erro ao estender acesso.' });
+    }
+});
+
+// Expirar/Cancelar Acesso do Cliente Manualmente
+app.post('/api/admin/expire-access', authenticateToken, requireAdmin, async (req, res) => {
+    const { userId } = req.body;
+
+    try {
+        const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
+        if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+        await supabase
+            .from('users')
+            .update({
+                subscription_end: new Date(), // Expira agora
+                is_active: false
+            })
+            .eq('id', userId);
+
+        res.json({ success: true, message: 'Plano do usuário expirado/cancelado com sucesso!' });
+    } catch (e) {
+        res.status(500).json({ error: 'Erro ao expirar acesso.' });
     }
 });
 
