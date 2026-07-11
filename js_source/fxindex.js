@@ -469,12 +469,22 @@ window.loadInitialPrices = async function() {
 };
 
 // ─── Inicia a conexão ──────────────────────────────────────────
+// Aguarda pid_arr estar populado por tables.js antes de conectar
+function waitForPidArrAndConnect() {
+    if (typeof pid_arr !== 'undefined' && pid_arr.length > 0) {
+        new_conn();
+    } else {
+        // pid_arr ainda não foi populado por tables.js — aguarda 100ms e tenta de novo
+        setTimeout(waitForPidArrAndConnect, 100);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof window.loadInitialPrices === 'function') {
         window.loadInitialPrices().then(function() {
-            new_conn();
+            waitForPidArrAndConnect();
         });
     } else {
-        new_conn();
+        waitForPidArrAndConnect();
     }
 });

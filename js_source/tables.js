@@ -116,34 +116,34 @@ const cryptos = [
 ];
 
 // Cache local dos ativos da nuvem (evita chamadas repetidas)
-let _cachedCustomAssets = null;
+window._cachedCustomAssets = null;
 
-// Recupera ativos customizados do servidor (API)
+// Função para buscar ativos da nuvem (API)
 async function fetchCustomAssetsFromAPI() {
     const token = localStorage.getItem('vsstraeder_token');
     if (!token) return [];
+
     try {
         const resp = await fetch('/api/assets', {
             headers: { 'Authorization': 'Bearer ' + token }
         });
-        if (!resp.ok) return [];
         const data = await resp.json();
-        _cachedCustomAssets = (data.assets || []).map(a => ({
+        window._cachedCustomAssets = (data.assets || []).map(a => ({
             sigla: a.name,
-            pid:   a.pid,
+            pid: a.pid,
             categoria: a.category,
             id: a.id
         }));
-        return _cachedCustomAssets;
+        return window._cachedCustomAssets;
     } catch (e) {
-        console.error('Erro ao buscar ativos da API:', e);
+        console.error('Erro ao carregar ativos da API:', e);
         return [];
     }
 }
 
 // Retorna o cache ou [] enquanto carrega
 function getCustomAssets() {
-    return _cachedCustomAssets || [];
+    return window._cachedCustomAssets || [];
 }
 
 // Combina os ativos padrão com os customizados divididos nas 10 categorias oficiais

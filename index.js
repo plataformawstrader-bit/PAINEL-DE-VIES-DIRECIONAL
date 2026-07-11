@@ -73,7 +73,13 @@ async function sendWhatsAppMessage(phone, message) {
     }
 
     try {
-        const cleanPhone = phone.replace(/\D/g, ''); // Apenas números
+        let cleanPhone = phone.replace(/\D/g, ''); // Apenas números
+
+        // Garante o prefixo +55 (Brasil) se for número nacional de 10 ou 11 dígitos
+        if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+            cleanPhone = '55' + cleanPhone;
+        }
+
         const response = await fetch(`${process.env.WHATSAPP_API_URL}/message/sendText/${process.env.WHATSAPP_INSTANCE}`, {
             method: 'POST',
             headers: {
