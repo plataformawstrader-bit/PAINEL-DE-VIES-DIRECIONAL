@@ -1068,15 +1068,49 @@ app.post('/api/prices/tick', express.json(), async (req, res) => {
     if (!pid || last === undefined || pcp === undefined) {
         return res.status(400).json({ error: 'PID, last e pcp são obrigatórios.' });
     }
+    
+    // 1. Atualiza cache em memória
     priceCache[pid] = {
         last: last,
         pcp: pcp,
         timestamp: Date.now()
     };
+    
+    // 2. Persiste no banco Supabase em segundo plano
+    supabase
+        .from('asset_prices')
+        .upsert({ pid: pid, last: last, pcp: pcp, updated_at: new Date().toISOString() })
+        .then(({ error }) => {
+            if (error) console.error('Erro ao persistir preço no Supabase:', error.message);
+        });
+
     res.json({ success: true });
 });
 
 // ========== INICIAR SERVIDOR ==========
-app.listen(PORT, () => {
-    console.log(`✅ Servidor profissional VSSTRAEDER rodando na porta ${PORT}`);
-});
+async function startServer() {
+    try {
+        console.log('🔄 Carregando histórico de preços do Supabase...');
+        const { data, error } = await supabase.from('asset_prices').select('*');
+        if (error) {
+            console.warn('⚠️ Tabela asset_prices não encontrada ou ilegível (Crie no SQL Editor):', error.message);
+        } else if (data) {
+            data.forEach(p => {
+                priceCache[p.pid] = {
+                    last: p.last,
+                    pcp: p.pcp,
+                    timestamp: new Date(p.updated_at).getTime()
+                };
+            });
+            console.log(`✅ ${data.length} preços carregados do banco de dados com sucesso!`);
+        }
+    } catch (e) {
+        console.error('Erro na carga inicial do banco:', e.message);
+    }
+
+    app.listen(PORT, () => {
+        console.log(`✅ Servidor profissional VSSTRAEDER rodando na porta ${PORT}`);
+    });
+}
+
+startServer();
