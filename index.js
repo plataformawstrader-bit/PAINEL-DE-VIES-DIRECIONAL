@@ -96,8 +96,8 @@ async function sendWhatsAppMessage(phone, message) {
 
 // ========== FUNÇÕES AUXILIARES DE ASSINATURA ==========
 const PLANOS = {
-    monthly: { price: 49.90, days: 30, name: 'Mensal' },
-    annual: { price: 299.00, days: 365, name: 'Anual' }
+    monthly: { price: 249.00, days: 30, name: 'Mensal' },
+    annual: { price: 2490.00, days: 365, name: 'Anual' }
 };
 
 function generateAffiliateCode() {
@@ -440,28 +440,57 @@ app.post('/api/recover-password', authLimiter, async (req, res) => {
             })
             .eq('id', user.id);
 
+        let whatsappLink = null;
         if (method === 'email') {
-            await transporter.sendMail({
-                from: `"VSSTRAEDER" <${process.env.EMAIL_USER}>`,
-                to: user.email,
-                subject: 'Código de Recuperação de Senha',
-                html: `<h1>Recuperação de Senha</h1><p>Olá ${user.name}, seu código de recuperação é:</p><h2 style="background:#0a0f1a;color:#00ff88;padding:10px;text-align:center;font-size:24px;letter-spacing:4px;">${recoveryToken}</h2><p>Código válido por 15 minutos.</p>`
-            });
-        } else if (method === 'whatsapp' && user.phone) {
-            await sendWhatsAppMessage(
-                user.phone,
-                `🔐 *RECUPERAÇÃO DE SENHA - VSSTRAEDER*\n\nOlá ${user.name},\nSeu código de redefinição de senha é: *${recoveryToken}*\n\nEle expira em 15 minutos. Use-o na tela de redefinição.`
-            );
+            try {
+                await transporter.sendMail({
+                    from: `"VSSTRAEDER" <${process.env.EMAIL_USER}>`,
+                    to: user.email,
+                    subject: 'Código de Recuperação de Senha',
+                    html: `<h1>Recuperação de Senha</h1><p>Olá ${user.name}, seu código de recuperação é:</p><h2 style="background:#0a0f1a;color:#00ff88;padding:10px;text-align:center;font-size:24px;letter-spacing:4px;">${recoveryToken}</h2><p>Código válido por 15 minutos.</p>`
+                });
+            } catch (mailErr) {
+                console.warn('⚠️ Falha no envio de e-mail (SMTP desconfigurado):', mailErr.message);
+            }
+        } else if (method === 'whatsapp') {
+            const cleanPhone = user.phone || contact.replace(/\D/g, '');
+            if (cleanPhone) {
+                try {
+                    const result = await sendWhatsAppMessage(
+                        cleanPhone,
+                        `🔐 *RECUPERAÇÃO DE SENHA - VSSTRAEDER*\n\nOlá ${user.name || 'Cliente'},\nSeu código de redefinição de senha é: *${recoveryToken}*\n\nEle expira em 15 minutos. Use-o na tela de redefinição.`
+                    );
+                    if (!result.success || result.status === 'simulated') {
+                        // Se for simulado ou falhar, gera o link direto de fallback para o WhatsApp do suporte
+                        const supportNumber = '5575981595225';
+                        const text = encodeURIComponent(`Olá, preciso do código de recuperação de senha para a conta ${user.email}. O token gerado no banco foi: ${recoveryToken}`);
+                        whatsappLink = `https://wa.me/${supportNumber}?text=${text}`;
+                    }
+                } catch (wsErr) {
+                    console.warn('⚠️ Falha no envio de WhatsApp:', wsErr.message);
+                }
+            }
         }
 
-        res.json({ success: true, message: 'Instruções enviadas com sucesso!' });
+        // SEMPRE printa o token no log para permitir resgate manual pelo admin
+        console.log(`\n======================================================`);
+        console.log(`🔑 CÓDIGO DE RECUPERAÇÃO GERADO COM SUCESSO!`);
+        console.log(`👤 Usuário: ${user.name} (${user.email})`);
+        console.log(`🎫 Código (Token): ${recoveryToken}`);
+        console.log(`⏰ Expira em: ${expires.toLocaleTimeString('pt-BR')}`);
+        console.log(`======================================================\n`);
+
+        res.json({ 
+            success: true, 
+            message: 'Código de recuperação processado com sucesso! Se os canais automáticos estiverem ativos você receberá a mensagem. Caso contrário, fale com o suporte.',
+            whatsappLink: whatsappLink
+        });
 
     } catch (error) {
         console.error('Erro de recuperação:', error);
         res.status(500).json({ error: 'Erro ao processar recuperação.' });
     }
 });
-
 // Redefinição de Senha
 app.post('/api/reset-password', authLimiter, async (req, res) => {
     const { token, newPassword } = req.body;
@@ -717,26 +746,37 @@ app.post('/api/admin/extend-access', authenticateToken, requireAdmin, async (req
         res.status(500).json({ error: 'Erro ao estender acesso.' });
     }
 });
-
-// Expirar/Cancelar Acesso do Cliente Manualmente
-app.post('/api/admin/expire-access', authenticateToken, requireAdmin, async (req, res) => {
+// Reativar/Desbloquear Acesso do Cliente Manualmente
+app.post('/api/admin/reactivate-user', authenticateToken, requireAdmin, async (req, res) => {
     const { userId } = req.body;
 
     try {
         const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
         if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
 
+        // Identifica plano atual (mensal ou anual)
+        const plan = user.subscription_plan || 'monthly';
+        const days = plan === 'annual' || plan === 'yearly' ? 365 : 30;
+
+        let baseDate = new Date();
+        // Se a assinatura ainda está ativa e no futuro, adiciona a partir de lá. Se não, a partir de hoje.
+        if (user.subscription_end && new Date(user.subscription_end) > baseDate) {
+            baseDate = new Date(user.subscription_end);
+        }
+        baseDate.setDate(baseDate.getDate() + days);
+
         await supabase
             .from('users')
             .update({
-                subscription_end: new Date(), // Expira agora
-                is_active: false
+                subscription_end: baseDate,
+                is_active: true,
+                blocked_until: null
             })
             .eq('id', userId);
 
-        res.json({ success: true, message: 'Plano do usuário expirado/cancelado com sucesso!' });
+        res.json({ success: true, message: `Acesso reativado no plano ${plan === 'annual' || plan === 'yearly' ? 'Anual' : 'Mensal'} até ${baseDate.toLocaleDateString('pt-BR')}` });
     } catch (e) {
-        res.status(500).json({ error: 'Erro ao expirar acesso.' });
+        res.status(500).json({ error: 'Erro ao reativar usuário.' });
     }
 });
 

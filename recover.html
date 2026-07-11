@@ -214,10 +214,15 @@
             successAlert.textContent = data.message || 'Código enviado com sucesso!';
             successAlert.style.display = 'block';
 
+            if (data.whatsappLink) {
+                window.open(data.whatsappLink, '_blank');
+                successAlert.innerHTML = (data.message || '') + '<br><br><strong>📱 Caso a página não tenha aberto automaticamente, <a href="' + data.whatsappLink + '" target="_blank" style="color:#00ff88; text-decoration:underline;">clique aqui para abrir o WhatsApp</a> e envie a mensagem pré-formatada para obter o código de recuperação com o suporte.</strong>';
+            }
+
             // Redireciona para redefinir senha passando o método/contato como dica
             setTimeout(() => {
                 window.location.href = 'reset-password.html';
-            }, 3000);
+            }, data.whatsappLink ? 15000 : 3000);
 
         } catch (err) {
             errorAlert.textContent = 'Sem conexão com o servidor.';

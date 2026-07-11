@@ -712,7 +712,7 @@
                     }
                     <button class="action-btn btn-extend" onclick="extendAccess('${u.id}', 30)">+30d</button>
                     <button class="action-btn btn-extend" style="background:rgba(0,240,255,0.15); border-color:rgba(0,240,255,0.4); color:#00f0ff;" onclick="extendAccess('${u.id}', 365)">+1 Ano</button>
-                    <button class="action-btn btn-block" style="background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.4); color:#ef4444;" onclick="expireAccess('${u.id}')">⏳ Expirar</button>
+                    <button class="action-btn btn-unblock" style="background:rgba(16,185,129,0.15); border-color:rgba(16,185,129,0.4); color:#10b981;" onclick="reactivateUser('${u.id}')">⚡ Reativar</button>
                 </td>
             </tr>
         `).join('');
@@ -760,18 +760,19 @@
         } catch (e) { alert('Erro ao estender acesso: ' + e.message); }
      }
 
-     async function expireAccess(userId) {
-        if (!confirm('Tem certeza que deseja expirar/cancelar o plano deste usuário imediatamente?')) return;
+     async function reactivateUser(userId) {
+        if (!confirm('Deseja reativar o acesso deste usuário? O sistema recalculará a expiração com base no plano atual dele (mensal/anual).')) return;
         try {
-            const resp = await fetch('/api/admin/expire-access', {
+            const resp = await fetch('/api/admin/reactivate-user', {
                 method: 'POST',
                 headers: HEADERS,
                 body: JSON.stringify({ userId })
             });
             const data = await resp.json();
             if (!data.success) throw new Error(data.error);
+            alert(data.message || 'Usuário reativado com sucesso!');
             await loadUsers();
-        } catch (e) { alert('Erro ao expirar acesso: ' + e.message); }
+        } catch (e) { alert('Erro ao reativar usuário: ' + e.message); }
      }
 
     // ─── Carregar Transações ─────────────────────────────────────────────
