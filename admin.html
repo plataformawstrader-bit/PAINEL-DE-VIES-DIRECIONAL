@@ -681,7 +681,10 @@
         try {
             const resp = await fetch('/api/admin/users', { headers: HEADERS });
             const data = await resp.json();
-            allUsers = data.users || [];
+            allUsers = (data.users || []).map(u => {
+                u.is_blocked = u.is_blocked || (u.blocked_until && new Date(u.blocked_until) > new Date());
+                return u;
+            });
             renderUsers(allUsers);
         } catch (e) {
             document.getElementById('users-tbody').innerHTML =

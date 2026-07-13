@@ -116,7 +116,7 @@ function getUserAccessStatus(user) {
     today.setHours(0, 0, 0, 0);
 
     // 1. Verificação de Bloqueio Administrativo
-    if (user.blocked_until && new Date(user.blocked_until) > today) {
+    if (user.is_blocked || (user.blocked_until && new Date(user.blocked_until) > today)) {
         return {
             allowed: false,
             reason: 'blocked',
@@ -690,17 +690,21 @@ app.post('/api/admin/block-user', authenticateToken, requireAdmin, async (req, r
     try {
         const farFuture = new Date('9999-12-31');
         
-        await supabase
+        const { error } = await supabase
             .from('users')
             .update({
                 blocked_until: farFuture,
+                is_blocked: true,
                 is_active: false,
                 current_session_id: null // Derruba a sessão atual ativa dele
             })
             .eq('id', userId);
 
+        if (error) throw error;
+
         res.json({ success: true, message: 'Usuário bloqueado permanentemente!' });
     } catch (e) {
+        console.error('Erro ao bloquear usuário:', e);
         res.status(500).json({ error: 'Erro ao bloquear usuário.' });
     }
 });
@@ -710,16 +714,20 @@ app.post('/api/admin/unblock-user', authenticateToken, requireAdmin, async (req,
     const { userId } = req.body;
 
     try {
-        await supabase
+        const { error } = await supabase
             .from('users')
             .update({
                 blocked_until: null,
+                is_blocked: false,
                 is_active: true
             })
             .eq('id', userId);
 
+        if (error) throw error;
+
         res.json({ success: true, message: 'Usuário desbloqueado!' });
     } catch (e) {
+        console.error('Erro ao desbloquear usuário:', e);
         res.status(500).json({ error: 'Erro ao desbloquear usuário.' });
     }
 });
@@ -738,17 +746,21 @@ app.post('/api/admin/extend-access', authenticateToken, requireAdmin, async (req
         }
         baseDate.setDate(baseDate.getDate() + parseInt(days));
 
-        await supabase
+        const { error } = await supabase
             .from('users')
             .update({
                 subscription_end: baseDate,
                 is_active: true,
+                is_blocked: false,
                 blocked_until: null
             })
             .eq('id', userId);
 
+        if (error) throw error;
+
         res.json({ success: true, message: `Acesso estendido até ${baseDate.toLocaleDateString('pt-BR')}` });
     } catch (e) {
+        console.error('Erro ao estender acesso:', e);
         res.status(500).json({ error: 'Erro ao estender acesso.' });
     }
 });
@@ -771,17 +783,21 @@ app.post('/api/admin/reactivate-user', authenticateToken, requireAdmin, async (r
         }
         baseDate.setDate(baseDate.getDate() + days);
 
-        await supabase
+        const { error } = await supabase
             .from('users')
             .update({
                 subscription_end: baseDate,
                 is_active: true,
+                is_blocked: false,
                 blocked_until: null
             })
             .eq('id', userId);
 
+        if (error) throw error;
+
         res.json({ success: true, message: `Acesso reativado no plano ${plan === 'annual' || plan === 'yearly' ? 'Anual' : 'Mensal'} até ${baseDate.toLocaleDateString('pt-BR')}` });
     } catch (e) {
+        console.error('Erro ao reativar usuário:', e);
         res.status(500).json({ error: 'Erro ao reativar usuário.' });
     }
 });
@@ -801,18 +817,21 @@ app.post('/api/admin/confirm-payment', authenticateToken, requireAdmin, async (r
         }
         baseDate.setDate(baseDate.getDate() + days);
 
-        await supabase
+        const { error: updateError } = await supabase
             .from('users')
             .update({
                 subscription_end: baseDate,
                 is_active: true,
                 subscription_plan: planType,
+                is_blocked: false,
                 blocked_until: null
             })
             .eq('id', userId);
 
+        if (updateError) throw updateError;
+
         // Grava histórico
-        await supabase
+        const { error: insertError } = await supabase
             .from('payments')
             .insert({
                 user_id: userId,
@@ -824,8 +843,11 @@ app.post('/api/admin/confirm-payment', authenticateToken, requireAdmin, async (r
                 paid_at: new Date()
             });
 
+        if (insertError) throw insertError;
+
         res.json({ success: true, message: 'Pagamento confirmado manualmente!' });
     } catch (e) {
+        console.error('Erro ao confirmar pagamento manualmente:', e);
         res.status(500).json({ error: 'Erro ao confirmar pagamento manualmente.' });
     }
 });
