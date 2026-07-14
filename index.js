@@ -666,6 +666,148 @@ app.post('/api/payment-webhook', async (req, res) => {
     }
 });
 
+// ========== WEBHOOK ASAAS ==========
+app.post('/api/webhook/asaas', async (req, res) => {
+    const body = req.body;
+
+    // Log para fins de debug
+    console.log('[Webhook Asaas Recebido]:', JSON.stringify(body));
+
+    try {
+        const event = body.event;
+        const payment = body.payment;
+
+        if (!event || !payment) {
+            return res.status(400).json({ error: 'Payload Asaas inválido.' });
+        }
+
+        // Tenta achar o email do usuário
+        // O Asaas permite passar o email no "externalReference" ou "description"
+        let userEmail = payment.externalReference;
+        
+        // Fallback: se não estiver no externalReference, tentamos buscar de outros lugares onde possa ter sido injetado
+        if (!userEmail || !userEmail.includes('@')) {
+            // Tenta ver se está na descrição (ex: "Plano Mensal - user@email.com")
+            const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/;
+            if (payment.description && emailRegex.test(payment.description)) {
+                userEmail = payment.description.match(emailRegex)[0];
+            } else {
+                console.log(`[Webhook Asaas] Email não encontrado. Pagamento ID: ${payment.id}. Configure o externalReference com o email do cliente no Asaas.`);
+                return res.status(200).json({ status: 'ignored', reason: 'missing_email' });
+            }
+        }
+
+        // Buscar usuário correspondente
+        const { data: user } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', userEmail.trim())
+            .single();
+
+        if (!user) {
+            console.log(`[Webhook Asaas] Usuário ${userEmail} não cadastrado no painel.`);
+            return res.status(200).json({ status: 'ignored', reason: 'user_not_found' });
+        }
+
+        // 1. Processar STATUS APROVADO
+        if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+            
+            // Determinar plano (Mensal ou Anual)
+            let planType = 'monthly';
+            let days = PLANOS.monthly.days;
+
+            if (payment.description && payment.description.toLowerCase().includes('anual')) {
+                planType = 'annual';
+                days = PLANOS.annual.days;
+            }
+
+            // Calcular nova data final acumulada (Garante não apagar dias restantes do cliente)
+            let baseDate = new Date();
+            if (user.subscription_end && new Date(user.subscription_end) > baseDate) {
+                baseDate = new Date(user.subscription_end);
+            }
+            baseDate.setDate(baseDate.getDate() + days);
+
+            // Atualiza usuário
+            await supabase
+                .from('users')
+                .update({
+                    subscription_end: baseDate,
+                    is_active: true,
+                    subscription_plan: planType,
+                    blocked_until: null
+                })
+                .eq('id', user.id);
+
+            // Grava Auditoria Financeira
+            const { data: paymentRecord } = await supabase
+                .from('payments')
+                .insert({
+                    user_id: user.id,
+                    transaction_id: payment.id,
+                    amount: parseFloat(payment.value || payment.netValue || 0),
+                    plan_type: planType,
+                    payment_method: payment.billingType || 'ASAAS',
+                    status: 'paid',
+                    paid_at: new Date()
+                })
+                .select()
+                .single();
+
+            // Processa comissão de afiliados se houver indicação
+            if (user.referred_by && paymentRecord) {
+                const commission = parseFloat(payment.value || 0) * 0.20; // 20%
+                await supabase
+                    .from('affiliate_commissions')
+                    .insert({
+                        affiliate_id: user.referred_by,
+                        referred_user_id: user.id,
+                        payment_id: paymentRecord.id,
+                        amount: commission,
+                        commission_percent: 20,
+                        status: 'pending'
+                    });
+            }
+
+            // Envia WhatsApp de confirmação
+            if (user.phone) {
+                sendWhatsAppMessage(
+                    user.phone,
+                    `💚 *PAGAMENTO APROVADO - VSSTRAEDER*\n\nOlá ${user.name},\nSeu acesso via Asaas foi liberado com sucesso!\n\nPlano: *${PLANOS[planType].name}*\nExpiração: *${baseDate.toLocaleDateString('pt-BR')}*\n\nAproveite os sinais em tempo real!`
+                ).catch(e => console.error(e));
+            }
+
+            return res.json({ success: true, action: 'activated', user: user.email });
+        }
+
+        // 2. Processar Cancelamentos / Vencimentos
+        if (event === 'PAYMENT_REFUNDED' || event === 'PAYMENT_CHARGEBACK_REQUESTED' || event === 'PAYMENT_DELETED') {
+            await supabase
+                .from('users')
+                .update({
+                    is_active: false,
+                    subscription_end: new Date() // Expira hoje imediatamente
+                })
+                .eq('id', user.id);
+
+            if (user.phone) {
+                sendWhatsAppMessage(
+                    user.phone,
+                    `⚠️ *CONTA EXPIRADA - VSSTRAEDER*\n\nOlá ${user.name},\nSeu pagamento no Asaas foi cancelado ou estornado.\n\nPara restabelecer seu acesso ao painel de viés, efetue a assinatura novamente.`
+                ).catch(e => console.error(e));
+            }
+
+            return res.json({ success: true, action: 'deactivated', user: user.email });
+        }
+
+        res.json({ success: true, action: 'ignored', status: event });
+
+    } catch (error) {
+        console.error('Erro no Webhook do Asaas:', error);
+        res.status(500).json({ error: 'Erro ao processar transação do Asaas.' });
+    }
+});
+
 // ========== ROTAS DO PAINEL ADMINISTRATIVO (SECRETO & SEGURO) ==========
 
 // Listar Usuários
