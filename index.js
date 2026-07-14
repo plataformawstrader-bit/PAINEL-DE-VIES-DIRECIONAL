@@ -666,38 +666,77 @@ app.post('/api/payment-webhook', async (req, res) => {
     }
 });
 
-// ========== WEBHOOK ASAAS ==========
-app.post('/api/webhook/asaas', async (req, res) => {
-    const body = req.body;
+// ========== WEBHOOK MERCADO PAGO ==========
+app.post('/api/webhook/mercadopago', async (req, res) => {
+    // O Mercado Pago exige que o servidor responda com 200 OK imediatamente para evitar retentativas.
+    res.status(200).send('OK');
 
-    // Log para fins de debug
-    console.log('[Webhook Asaas Recebido]:', JSON.stringify(body));
+    const body = req.body;
+    console.log('[Webhook Mercado Pago Recebido]:', JSON.stringify(body));
 
     try {
-        const event = body.event;
-        const payment = body.payment;
+        const type = body.type || (body.action && body.action.split('.')[0]);
+        const dataId = body.data?.id || body.id; // Depende se é notificação Webhook (data.id) ou IPN (id)
 
-        if (!event || !payment) {
-            return res.status(400).json({ error: 'Payload Asaas inválido.' });
+        if (!dataId) {
+            console.log('[Webhook MP] Payload sem ID de dados.');
+            return;
         }
 
-        // Tenta achar o email do usuário
-        // O Asaas permite passar o email no "externalReference" ou "description"
-        let userEmail = payment.externalReference;
+        let paymentData = null;
+        let isSubscription = false;
+
+        // O Token de Acesso do MP deve ser passado nas variáveis de ambiente
+        const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
         
-        // Fallback: se não estiver no externalReference, tentamos buscar de outros lugares onde possa ter sido injetado
+        if (!mpAccessToken) {
+            console.error('[Webhook MP] Erro Crítico: Variável MERCADOPAGO_ACCESS_TOKEN não configurada no servidor.');
+            return;
+        }
+
+        // 1. Busca os detalhes reais do pagamento ou assinatura direto na API do Mercado Pago (Segurança)
+        if (type === 'payment') {
+            const response = await fetch(`https://api.mercadopago.com/v1/payments/${dataId}`, {
+                headers: { 'Authorization': `Bearer ${mpAccessToken}` }
+            });
+            paymentData = await response.json();
+        } else if (type === 'subscription' || type === 'preapproval') {
+            isSubscription = true;
+            const response = await fetch(`https://api.mercadopago.com/preapproval/${dataId}`, {
+                headers: { 'Authorization': `Bearer ${mpAccessToken}` }
+            });
+            paymentData = await response.json();
+        } else {
+            console.log(`[Webhook MP] Ignorando tipo de evento não financeiro: ${type}`);
+            return;
+        }
+
+        if (!paymentData || paymentData.error) {
+            console.error('[Webhook MP] Erro ao buscar dados na API do MP:', paymentData);
+            return;
+        }
+
+        // 2. Identificar o E-mail do Cliente
+        // No Mercado Pago, é muito comum passarem o ID ou E-mail pelo "external_reference"
+        let userEmail = paymentData.external_reference;
+        const status = paymentData.status; 
+        
+        // Fallback para pegar o email diretamente dos dados do pagador no MP
         if (!userEmail || !userEmail.includes('@')) {
-            // Tenta ver se está na descrição (ex: "Plano Mensal - user@email.com")
-            const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/;
-            if (payment.description && emailRegex.test(payment.description)) {
-                userEmail = payment.description.match(emailRegex)[0];
-            } else {
-                console.log(`[Webhook Asaas] Email não encontrado. Pagamento ID: ${payment.id}. Configure o externalReference com o email do cliente no Asaas.`);
-                return res.status(200).json({ status: 'ignored', reason: 'missing_email' });
+            userEmail = paymentData.payer?.email || paymentData.payer_email;
+            
+            // Se ainda assim não achar, tenta buscar em campos da assinatura
+            if (!userEmail && isSubscription) {
+                 userEmail = paymentData.payer_email;
+            }
+
+            if (!userEmail) {
+                console.log(`[Webhook MP] Sem email para identificar o usuário. Pagamento ID: ${dataId}`);
+                return;
             }
         }
 
-        // Buscar usuário correspondente
+        // 3. Buscar usuário no Banco de Dados (Supabase)
         const { data: user } = await supabase
             .from('users')
             .select('*')
@@ -705,30 +744,42 @@ app.post('/api/webhook/asaas', async (req, res) => {
             .single();
 
         if (!user) {
-            console.log(`[Webhook Asaas] Usuário ${userEmail} não cadastrado no painel.`);
-            return res.status(200).json({ status: 'ignored', reason: 'user_not_found' });
+            console.log(`[Webhook MP] Usuário com email ${userEmail} não encontrado no banco.`);
+            return;
         }
 
-        // 1. Processar STATUS APROVADO
-        if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+        // 4. Processar STATUS APROVADO
+        if (status === 'approved' || status === 'authorized') {
             
-            // Determinar plano (Mensal ou Anual)
+            // Determinar plano e dias
             let planType = 'monthly';
             let days = PLANOS.monthly.days;
+            const description = paymentData.description || paymentData.reason || '';
 
-            if (payment.description && payment.description.toLowerCase().includes('anual')) {
+            if (description.toLowerCase().includes('anual')) {
                 planType = 'annual';
                 days = PLANOS.annual.days;
             }
 
-            // Calcular nova data final acumulada (Garante não apagar dias restantes do cliente)
+            // Se for assinatura recorrente e cobrar mensalmente
+            if (isSubscription) {
+                // Preapprovals no MP renovam mensalmente na maioria das vezes, então somamos 30
+                days = 30; 
+                planType = 'monthly'; // A menos que configurado como cobrança anual no MP
+                if (paymentData.auto_recurring && paymentData.auto_recurring.frequency === 12 && paymentData.auto_recurring.frequency_type === 'months') {
+                    days = 365;
+                    planType = 'annual';
+                }
+            }
+
+            // Calcular nova data de vencimento acumulativa
             let baseDate = new Date();
             if (user.subscription_end && new Date(user.subscription_end) > baseDate) {
                 baseDate = new Date(user.subscription_end);
             }
             baseDate.setDate(baseDate.getDate() + days);
 
-            // Atualiza usuário
+            // Atualiza usuário no Supabase
             await supabase
                 .from('users')
                 .update({
@@ -740,23 +791,24 @@ app.post('/api/webhook/asaas', async (req, res) => {
                 .eq('id', user.id);
 
             // Grava Auditoria Financeira
+            const amount = paymentData.transaction_amount || paymentData.auto_recurring?.transaction_amount || 0;
             const { data: paymentRecord } = await supabase
                 .from('payments')
                 .insert({
                     user_id: user.id,
-                    transaction_id: payment.id,
-                    amount: parseFloat(payment.value || payment.netValue || 0),
+                    transaction_id: `MP_${dataId}`,
+                    amount: parseFloat(amount),
                     plan_type: planType,
-                    payment_method: payment.billingType || 'ASAAS',
+                    payment_method: paymentData.payment_type_id || (isSubscription ? 'SUBSCRIPTION' : 'MERCADOPAGO'),
                     status: 'paid',
                     paid_at: new Date()
                 })
                 .select()
                 .single();
 
-            // Processa comissão de afiliados se houver indicação
+            // Comissão de Afiliados
             if (user.referred_by && paymentRecord) {
-                const commission = parseFloat(payment.value || 0) * 0.20; // 20%
+                const commission = parseFloat(amount) * 0.20; // 20%
                 await supabase
                     .from('affiliate_commissions')
                     .insert({
@@ -769,42 +821,39 @@ app.post('/api/webhook/asaas', async (req, res) => {
                     });
             }
 
-            // Envia WhatsApp de confirmação
+            // Enviar notificação de WhatsApp
             if (user.phone) {
                 sendWhatsAppMessage(
                     user.phone,
-                    `💚 *PAGAMENTO APROVADO - VSSTRAEDER*\n\nOlá ${user.name},\nSeu acesso via Asaas foi liberado com sucesso!\n\nPlano: *${PLANOS[planType].name}*\nExpiração: *${baseDate.toLocaleDateString('pt-BR')}*\n\nAproveite os sinais em tempo real!`
+                    `💚 *PAGAMENTO APROVADO - MERCADO PAGO*\n\nOlá ${user.name},\nSeu acesso foi ativado/renovado com sucesso!\n\nPlano: *${PLANOS[planType].name}*\nExpiração: *${baseDate.toLocaleDateString('pt-BR')}*\n\nAproveite os sinais do painel de viés!`
                 ).catch(e => console.error(e));
             }
-
-            return res.json({ success: true, action: 'activated', user: user.email });
+            
+            return;
         }
 
-        // 2. Processar Cancelamentos / Vencimentos
-        if (event === 'PAYMENT_REFUNDED' || event === 'PAYMENT_CHARGEBACK_REQUESTED' || event === 'PAYMENT_DELETED') {
+        // 5. Processar STATUS CANCELADO / REJEITADO / ESTORNADO
+        if (status === 'refunded' || status === 'cancelled' || status === 'rejected' || status === 'charged_back') {
             await supabase
                 .from('users')
                 .update({
                     is_active: false,
-                    subscription_end: new Date() // Expira hoje imediatamente
+                    subscription_end: new Date() // Expira imediatamente
                 })
                 .eq('id', user.id);
 
             if (user.phone) {
                 sendWhatsAppMessage(
                     user.phone,
-                    `⚠️ *CONTA EXPIRADA - VSSTRAEDER*\n\nOlá ${user.name},\nSeu pagamento no Asaas foi cancelado ou estornado.\n\nPara restabelecer seu acesso ao painel de viés, efetue a assinatura novamente.`
+                    `⚠️ *CONTA EXPIRADA - VSSTRAEDER*\n\nOlá ${user.name},\nUma cobrança no Mercado Pago foi recusada, cancelada ou estornada.\n\nPara restabelecer seu acesso, efetue uma nova assinatura.`
                 ).catch(e => console.error(e));
             }
 
-            return res.json({ success: true, action: 'deactivated', user: user.email });
+            return;
         }
 
-        res.json({ success: true, action: 'ignored', status: event });
-
     } catch (error) {
-        console.error('Erro no Webhook do Asaas:', error);
-        res.status(500).json({ error: 'Erro ao processar transação do Asaas.' });
+        console.error('Erro no processamento do Webhook MP:', error);
     }
 });
 
