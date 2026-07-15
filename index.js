@@ -1043,6 +1043,124 @@ app.post('/api/admin/confirm-payment', authenticateToken, requireAdmin, async (r
     }
 });
 
+// ========== GERAR TOKEN DE RECUPERAÇÃO PELO ADMIN ==========
+app.post('/api/admin/generate-recovery-token', authenticateToken, requireAdmin, async (req, res) => {
+    const { userId } = req.body;
+
+    try {
+        const { data: user } = await supabase
+            .from('users')
+            .select('id, name, email, phone')
+            .eq('id', userId)
+            .single();
+
+        if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+        // Gerar token legível de 6 caracteres
+        const token = crypto.randomBytes(3).toString('hex').toUpperCase();
+        const expires = new Date();
+        expires.setHours(expires.getHours() + 2);
+
+        // Salvar token no banco
+        const { error: updateError } = await supabase
+            .from('users')
+            .update({ recovery_token: token, recovery_expires: expires })
+            .eq('id', userId);
+
+        if (updateError) throw updateError;
+
+        // Montar link de redefinição
+        const baseUrl = process.env.SITE_URL || 'https://painel-vies-direcional.vercel.app';
+        const resetLink = `${baseUrl}/reset-password.html?token=${token}`;
+        const expDate = expires.toLocaleTimeString('pt-BR');
+        const msgText = `Olá ${user.name}! 👋\n\nAqui é o suporte do WS TRADER.\n\nSeu código para criar uma nova senha é:\n\n🔑 *${token}*\n\nAcesse o link e use esse código:\n${resetLink}\n\n⚠️ Expira às ${expDate}.`;
+
+        // 1. Tentar envio por E-mail
+        let emailSent = false;
+        let emailError = null;
+        try {
+            await transporter.sendMail({
+                from: `"WS TRADER - Suporte" <${process.env.EMAIL_USER}>`,
+                to: user.email,
+                subject: '🔑 Código de Redefinição de Senha - WS TRADER',
+                html: `
+                    <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;background:#0a0f1a;color:#e2e8f0;border-radius:16px;padding:2rem;border:1px solid #1e293b;">
+                        <h2 style="color:#00ff88;margin-top:0;text-align:center;">🔑 Redefinição de Senha</h2>
+                        <p>Olá <strong>${user.name}</strong>,</p>
+                        <p>O administrador gerou um código para você redefinir sua senha de acesso ao painel <strong>WS TRADER</strong>.</p>
+                        <div style="background:#040507;border:2px dashed #fbbf24;border-radius:12px;padding:1.5rem;text-align:center;margin:1.5rem 0;">
+                            <div style="font-size:0.75rem;color:#64748b;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:.1em;">Seu Código</div>
+                            <div style="font-size:2.5rem;font-weight:900;letter-spacing:0.3em;color:#fbbf24;font-family:monospace;">${token}</div>
+                            <div style="font-size:0.7rem;color:#64748b;margin-top:0.5rem;">⏰ Válido por 2 horas</div>
+                        </div>
+                        <p style="text-align:center;">
+                            <a href="${resetLink}" style="display:inline-block;background:#00ff88;color:#040507;font-weight:800;padding:0.8rem 2rem;border-radius:10px;text-decoration:none;font-size:0.9rem;">👉 Clique aqui para redefinir sua senha</a>
+                        </p>
+                        <p style="font-size:0.78rem;color:#64748b;text-align:center;margin-top:1.5rem;">Ou acesse: <a href="${resetLink}" style="color:#00ff88;">${resetLink}</a></p>
+                    </div>
+                `
+            });
+            emailSent = true;
+            console.log(`[Admin] Token enviado por e-mail para ${user.email}`);
+        } catch (mailErr) {
+            emailError = mailErr.message;
+            console.warn(`[Admin] Falha no e-mail para ${user.email}:`, mailErr.message);
+        }
+
+        // 2. Tentar envio por Telegram Bot (se configurado)
+        let telegramSent = false;
+        if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_TOKEN !== '') {
+            try {
+                // Busca chat_id do usuário se estiver salvo na tabela
+                const { data: tgData } = await supabase
+                    .from('users')
+                    .select('telegram_chat_id')
+                    .eq('id', userId)
+                    .single();
+
+                const chatId = tgData?.telegram_chat_id;
+                if (chatId) {
+                    const tgResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            text: msgText,
+                            parse_mode: 'Markdown'
+                        })
+                    });
+                    const tgResult = await tgResponse.json();
+                    if (tgResult.ok) {
+                        telegramSent = true;
+                        console.log(`[Admin] Token enviado por Telegram para chat_id ${chatId}`);
+                    }
+                }
+            } catch (tgErr) {
+                console.warn('[Admin] Falha no Telegram:', tgErr.message);
+            }
+        }
+
+        console.log(`[Admin] TOKEN GERADO | Usuário: ${user.name} (${user.email}) | Token: ${token} | Expira: ${expires.toLocaleTimeString('pt-BR')}`);
+
+        res.json({
+            success: true,
+            token,
+            userEmail: user.email,
+            userName: user.name,
+            userPhone: user.phone || null,
+            expiresAt: expires,
+            resetLink,
+            emailSent,
+            telegramSent,
+            emailError: emailSent ? null : `E-mail não enviado: ${emailError}`
+        });
+
+    } catch (error) {
+        console.error('Erro ao gerar token de recuperação pelo admin:', error);
+        res.status(500).json({ error: 'Erro ao gerar token de recuperação.' });
+    }
+});
+
 // Gerenciamento de PIDs autorizados pelo Admin
 app.get('/api/admin/allowed-pids', authenticateToken, requireAdmin, async (req, res) => {
     try {
