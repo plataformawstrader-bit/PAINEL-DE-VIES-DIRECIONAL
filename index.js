@@ -533,6 +533,104 @@ app.post('/api/reset-password', authLimiter, async (req, res) => {
     }
 });
 
+// ========== ROTA DE VINCULAÇÃO DO TELEGRAM ==========
+app.post('/api/user/link-telegram', authenticateToken, async (req, res) => {
+    const { telegramChatId } = req.body;
+    const userId = req.user.id;
+
+    if (!telegramChatId) {
+        return res.status(400).json({ error: 'Chat ID do Telegram é obrigatório.' });
+    }
+
+    try {
+        const { error } = await supabase
+            .from('users')
+            .update({ telegram_chat_id: telegramChatId.trim() })
+            .eq('id', userId);
+
+        if (error) throw error;
+
+        res.json({ success: true, message: 'Conta do Telegram vinculada com sucesso!' });
+    } catch (e) {
+        console.error('Erro ao vincular telegram:', e);
+        res.status(500).json({ error: 'Erro ao vincular Telegram.' });
+    }
+});
+
+// ========== WEBHOOK DO BOT DO TELEGRAM ==========
+app.post('/api/telegram-webhook', async (req, res) => {
+    res.status(200).send('OK');
+
+    const body = req.body;
+    const message = body.message || body.edited_message;
+    if (!message || !message.text) return;
+
+    const chatId = message.chat.id.toString();
+    const text = message.text.trim();
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+    if (!botToken) {
+        console.error('[Telegram Bot] Token não configurado nas variáveis de ambiente.');
+        return;
+    }
+
+    const sendTg = async (txt) => {
+        try {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: txt, parse_mode: 'Markdown' })
+            });
+        } catch (e) {
+            console.error('[Telegram Bot] Erro ao enviar mensagem:', e.message);
+        }
+    };
+
+    try {
+        if (text === '/start' || text.startsWith('/vincular')) {
+            await sendTg(`👋 *Olá! Bem-vindo ao bot oficial do WS TRADER.*\n\nSeu **Chat ID do Telegram** é:\n\`${chatId}\`\n\nUse este ID no seu painel para vincular sua conta e receber as notificações e códigos de redefinição direto aqui!`);
+            return;
+        }
+
+        if (text === '/recuperar' || text === '/senha') {
+            // Busca o usuário correspondente no banco pelo telegram_chat_id
+            const { data: user, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('telegram_chat_id', chatId)
+                .single();
+
+            if (error || !user) {
+                await sendTg(`❌ *Conta do Telegram não vinculada!*\n\nEntre no painel do site e salve o seu Chat ID (\`${chatId}\`) nas suas configurações para poder gerar códigos de recuperação por aqui.`);
+                return;
+            }
+
+            // Gerar token de 6 dígitos
+            const token = crypto.randomBytes(3).toString('hex').toUpperCase();
+            const expires = new Date();
+            expires.setMinutes(expires.getMinutes() + 15); // Válido por 15 minutos
+
+            await supabase
+                .from('users')
+                .update({
+                    recovery_token: token,
+                    recovery_expires: expires
+                })
+                .eq('id', user.id);
+
+            const resetLink = `${process.env.SITE_URL || 'https://painel-vies-direcional.vercel.app'}/reset-password.html?token=${token}`;
+
+            await sendTg(`🔑 *Código de Recuperação Gerado!*\n\nOlá *${user.name}*,\nSeu código de redefinição de senha é:\n\n\`${token}\`\n\nClique no link abaixo para criar uma nova senha:\n${resetLink}\n\n⏰ _Válido por 15 minutos._`);
+            return;
+        }
+
+        // Resposta padrão
+        await sendTg(`🤖 *Menu do Bot WS TRADER:*\n\n• /start - Mostrar seu Chat ID\n• /recuperar - Gerar código de redefinição de senha`);
+    } catch (err) {
+        console.error('[Telegram Bot Webhook Error]:', err);
+    }
+});
+
 // ========== WEBHOOK INTEGRADO (KIWIFY / CACTO) ==========
 app.post('/api/payment-webhook', async (req, res) => {
     const body = req.body;
@@ -1439,8 +1537,21 @@ async function startServer() {
         console.error('Erro na carga inicial do banco:', e.message);
     }
 
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
         console.log(`✅ Servidor profissional VSSTRAEDER rodando na porta ${PORT}`);
+        
+        // Registrar Webhook do Telegram automaticamente
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        const siteUrl = process.env.SITE_URL || 'https://painel-vies-direcional.vercel.app';
+        if (botToken) {
+            try {
+                const response = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${siteUrl}/api/telegram-webhook`);
+                const result = await response.json();
+                console.log('[Telegram Bot] Webhook registrado:', result);
+            } catch (err) {
+                console.error('[Telegram Bot] Erro ao registrar webhook no startup:', err.message);
+            }
+        }
     });
 }
 

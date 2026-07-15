@@ -630,3 +630,111 @@ footer a:hover { text-decoration: underline; }
 .modal-body h4 { font-family: var(--font-header); color: var(--accent); margin: 1.2rem 0 0.4rem; font-size: 0.95rem; }
 .modal-body h4:first-child { margin-top: 0; }
 .modal-body p { margin-bottom: 0.75rem; }
+
+/* ─── RESPONSIVIDADE COMPLETA PARA CELULARES (MÓVEL) ────────── */
+@media (max-width: 768px) {
+    body {
+        padding: 0.75rem;
+    }
+    
+    /* Cabeçalho Responsivo */
+    .site-header {
+        padding: 1.2rem 1rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.2rem;
+        text-align: center;
+    }
+    
+    .brand h1 {
+        font-size: 1.4rem;
+        justify-content: center;
+    }
+    
+    .brand p {
+        font-size: 0.7rem;
+    }
+    
+    /* Agrupamento de ações no cabeçalho */
+    .site-header > div {
+        flex-direction: column;
+        align-items: stretch !important;
+        width: 100%;
+        gap: 0.8rem !important;
+    }
+    
+    .site-header .conn-status {
+        justify-content: center;
+    }
+    
+    .site-header .theme-switch {
+        justify-content: center;
+        width: 100%;
+    }
+    
+    .site-header .theme-switch button {
+        flex: 1;
+        justify-content: center;
+    }
+    
+    .site-header a, .site-header button, .site-header span {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    /* Linha de viés */
+    .bias-block {
+        padding: 1.2rem 1rem;
+    }
+    
+    .bias-direction {
+        justify-content: center;
+    }
+    
+    .bias-percentage {
+        font-size: 2.2rem !important;
+    }
+
+    /* Reduzir paddings e fontes das tabelas para caber na tela sem overflow */
+    thead th {
+        font-size: 0.6rem;
+        padding: 0.4rem 0.3rem;
+    }
+    
+    tbody td {
+        font-size: 0.72rem;
+        padding: 0.4rem 0.3rem;
+    }
+    
+    /* Scroll das tabelas caso o celular seja muito pequeno */
+    .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Modais em tela cheia suave */
+    .modal-box {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .modal-body {
+        padding: 1.2rem;
+    }
+    
+    /* Rodapé */
+    footer {
+        flex-direction: column;
+        text-align: center;
+        padding: 1.2rem 1rem;
+        gap: 1.2rem;
+    }
+    
+    .footer-links {
+        flex-direction: column;
+        gap: 0.6rem;
+        align-items: center;
+    }
+}
+
